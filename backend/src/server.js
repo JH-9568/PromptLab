@@ -1,8 +1,11 @@
 // src/server.js
-import app from './app.js';
-import config from './config/index.js';
+require('dotenv').config();
+const app = require('./app');
 
-app.listen(config.PORT, () => {
-  console.log(`Server running on port ${config.PORT} (${config.NODE_ENV})`);
-  console.log(`Health: http://localhost:${config.PORT}/health`);
+const PORT = process.env.PORT || 3000;
+const NODE_ENV = process.env.NODE_ENV || 'development';
+
+app.listen(PORT, () => {
+  console.log(`🚀 Server running in ${NODE_ENV} mode on port ${PORT}`);
+  console.log(`Health check: http://localhost:${PORT}/health`);
 });
