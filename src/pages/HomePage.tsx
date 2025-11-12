@@ -1,19 +1,22 @@
 import { Search, TrendingUp, Sparkles, Code2, Megaphone, Palette, GraduationCap, BarChart } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { trendingPrompts, newPrompts, categoryInfo } from '@/lib/mock-data';
 import logoImage from '@/assets/logo.png';
-import type { NavigateHandler } from '@/types/navigation';
+import type { Prompt } from '@/lib/mock-data';
+import type { PromptCategory } from '@/types/navigation';
+import { useAppStore } from '@/store/useAppStore';
 
-interface HomePageProps {
-  onNavigate: NavigateHandler;
-}
-
-export function HomePage({ onNavigate }: HomePageProps) {
+export function HomePage() {
   const [searchInput, setSearchInput] = useState('');
+  const navigate = useNavigate();
+  const setSelectedPrompt = useAppStore((state) => state.setSelectedPrompt);
+  const setSelectedCategory = useAppStore((state) => state.setSelectedCategory);
+  const setSearchQuery = useAppStore((state) => state.setSearchQuery);
   const categoryIcons: Record<string, LucideIcon> = {
     'Code2': Code2,
     'Megaphone': Megaphone,
@@ -25,8 +28,19 @@ export function HomePage({ onNavigate }: HomePageProps) {
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     if (searchInput.trim()) {
-      onNavigate('search', searchInput);
+      setSearchQuery(searchInput);
+      navigate('/search');
     }
+  };
+
+  const openPrompt = (prompt: Prompt) => {
+    setSelectedPrompt(prompt);
+    navigate('/repository');
+  };
+
+  const openCategory = (category: PromptCategory) => {
+    setSelectedCategory(category);
+    navigate('/category');
   };
 
   return (
@@ -65,7 +79,7 @@ export function HomePage({ onNavigate }: HomePageProps) {
               <Card 
                 key={prompt.id} 
                 className="card-hover cursor-pointer border-border hover:border-primary"
-                onClick={() => onNavigate('repository', prompt)}
+                onClick={() => openPrompt(prompt)}
               >
                 <CardHeader>
                   <div className="flex items-start justify-between mb-2">
@@ -99,7 +113,7 @@ export function HomePage({ onNavigate }: HomePageProps) {
               <Card 
                 key={prompt.id} 
                 className="card-hover cursor-pointer border-border hover:border-primary"
-                onClick={() => onNavigate('repository', prompt)}
+                onClick={() => openPrompt(prompt)}
               >
                 <CardHeader>
                   <div className="flex items-start justify-between mb-2">
@@ -135,7 +149,7 @@ export function HomePage({ onNavigate }: HomePageProps) {
                 <Card 
                   key={key}
                   className="card-hover cursor-pointer border-border hover:border-accent"
-                  onClick={() => onNavigate('category', key)}
+                  onClick={() => openCategory(key as PromptCategory)}
                 >
                   <CardHeader className="text-center">
                     <div className={`w-12 h-12 ${info.color} rounded-lg flex items-center justify-center mx-auto mb-3 shadow-lg`}>

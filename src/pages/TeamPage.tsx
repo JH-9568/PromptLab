@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Users, Plus, Link as LinkIcon, Copy, Star, GitFork, Trash2, Crown, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -10,11 +11,7 @@ import { Label } from '@/components/ui/label';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { mockPrompts } from '@/lib/mock-data';
 import type { Prompt } from '@/lib/mock-data';
-import type { NavigateHandler } from '@/types/navigation';
-
-interface TeamPageProps {
-  onNavigate: NavigateHandler;
-}
+import { useAppStore } from '@/store/useAppStore';
 
 interface Team {
   id: string;
@@ -27,7 +24,9 @@ interface Team {
   avatar: string;
 }
 
-export function TeamPage({ onNavigate }: TeamPageProps) {
+export function TeamPage() {
+  const navigate = useNavigate();
+  const setSelectedPrompt = useAppStore((state) => state.setSelectedPrompt);
   const [selectedTeam, setSelectedTeam] = useState<Team | null>(null);
   const [isManageModalOpen, setIsManageModalOpen] = useState(false);
   const [isCreateTeamModalOpen, setIsCreateTeamModalOpen] = useState(false);
@@ -129,7 +128,10 @@ export function TeamPage({ onNavigate }: TeamPageProps) {
     <Card 
       key={prompt.id}
       className="card-hover cursor-pointer border-border hover:border-primary active:scale-[0.98]"
-      onClick={() => onNavigate('repository', prompt)}
+      onClick={() => {
+        setSelectedPrompt(prompt);
+        navigate('/repository');
+      }}
     >
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between mb-2">
@@ -196,7 +198,7 @@ export function TeamPage({ onNavigate }: TeamPageProps) {
           <header className="border-b bg-card">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between gap-2">
               <div className="flex items-center gap-2 sm:gap-4 min-w-0">
-                <Button variant="ghost" size="icon" onClick={() => onNavigate('home')} className="flex-shrink-0">
+                <Button variant="ghost" size="icon" onClick={() => navigate('/')} className="flex-shrink-0">
                   <ArrowLeft className="w-4 h-4 sm:w-5 sm:h-5" />
                 </Button>
                 <div className="flex items-center gap-2 sm:gap-3">
@@ -372,7 +374,10 @@ export function TeamPage({ onNavigate }: TeamPageProps) {
               </Button>
               <Button 
                 className="glow-primary bg-primary hover:bg-primary/90"
-                onClick={() => onNavigate('editor')}
+                onClick={() => {
+                  setSelectedPrompt(undefined);
+                  navigate('/editor');
+                }}
                 size="sm"
               >
                 <Plus className="w-4 h-4 sm:mr-2" />
@@ -411,7 +416,10 @@ export function TeamPage({ onNavigate }: TeamPageProps) {
               </p>
               <Button 
                 className="bg-primary hover:bg-primary/90"
-                onClick={() => onNavigate('editor')}
+                onClick={() => {
+                  setSelectedPrompt(undefined);
+                  navigate('/editor');
+                }}
               >
                 <Plus className="w-4 h-4 mr-2" />
                 첫 팀 프롬프트 만들기

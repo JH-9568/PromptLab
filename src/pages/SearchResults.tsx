@@ -1,22 +1,31 @@
 import { ArrowLeft, Search as SearchIcon, Filter, SlidersHorizontal } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { mockPrompts } from '@/lib/mock-data';
-import type { NavigateHandler } from '@/types/navigation';
+import { useAppStore } from '@/store/useAppStore';
 
-interface SearchResultsProps {
-  query?: string;
-  onNavigate: NavigateHandler;
-}
-
-export function SearchResults({ query = '', onNavigate }: SearchResultsProps) {
-  const [searchQuery, setSearchQuery] = useState(query);
+export function SearchResults() {
+  const initialQuery = useAppStore((state) => state.searchQuery);
+  const setGlobalSearchQuery = useAppStore((state) => state.setSearchQuery);
+  const setSelectedPrompt = useAppStore((state) => state.setSelectedPrompt);
+  const navigate = useNavigate();
+  const [searchQuery, setSearchQuery] = useState(initialQuery);
   const [sortBy, setSortBy] = useState('relevance');
   const [filterCategory, setFilterCategory] = useState('all');
+
+  useEffect(() => {
+    setGlobalSearchQuery(searchQuery);
+  }, [searchQuery, setGlobalSearchQuery]);
+
+  const openPrompt = (prompt: (typeof mockPrompts)[number]) => {
+    setSelectedPrompt(prompt);
+    navigate('/repository');
+  };
 
   // Filter and search logic
   let results = mockPrompts;
@@ -48,7 +57,7 @@ export function SearchResults({ query = '', onNavigate }: SearchResultsProps) {
       <div className="border-b bg-card">
         <div className="max-w-7xl mx-auto px-6 py-6">
           <button
-            onClick={() => onNavigate('home')}
+            onClick={() => navigate('/')}
             className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors mb-4"
           >
             <ArrowLeft className="w-5 h-5" />
@@ -124,7 +133,7 @@ export function SearchResults({ query = '', onNavigate }: SearchResultsProps) {
               <Card 
                 key={prompt.id}
                 className="card-hover cursor-pointer border-border hover:border-primary"
-                onClick={() => onNavigate('repository', prompt)}
+                onClick={() => openPrompt(prompt)}
               >
                 <CardHeader>
                   <div className="flex items-start justify-between mb-2">

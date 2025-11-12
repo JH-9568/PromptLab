@@ -1,18 +1,14 @@
 import { useState } from 'react';
 import { Mail, Lock, User, ArrowLeft, Eye, EyeOff } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import logoImage from '@/assets/logo.png';
-import type { NavigateHandler } from '@/types/navigation';
+import { useAppStore } from '@/store/useAppStore';
 
-interface AuthPageProps {
-  onNavigate: NavigateHandler;
-  onAuthSuccess: () => void;
-}
-
-export function AuthPage({ onNavigate, onAuthSuccess }: AuthPageProps) {
+export function AuthPage() {
   const [isLogin, setIsLogin] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
   const [formData, setFormData] = useState({
@@ -20,18 +16,25 @@ export function AuthPage({ onNavigate, onAuthSuccess }: AuthPageProps) {
     password: '',
     username: ''
   });
+  const navigate = useNavigate();
+  const login = useAppStore((state) => state.login);
+
+  const handleAuthSuccess = () => {
+    login();
+    navigate('/', { replace: true });
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     // Mock authentication - in real app, this would call Supabase
     console.log('Auth:', isLogin ? 'Login' : 'Signup', formData);
-    onAuthSuccess();
+    handleAuthSuccess();
   };
 
   const handleSocialAuth = (provider: string) => {
     // Mock social auth
     console.log('Social auth:', provider);
-    onAuthSuccess();
+    handleAuthSuccess();
   };
 
   return (
@@ -40,7 +43,7 @@ export function AuthPage({ onNavigate, onAuthSuccess }: AuthPageProps) {
       <header className="border-b glass-strong sticky top-0 z-40">
         <div className="max-w-md mx-auto px-4 py-4">
           <button
-            onClick={() => onNavigate('home')}
+            onClick={() => navigate(-1)}
             className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors"
           >
             <ArrowLeft className="w-5 h-5" />

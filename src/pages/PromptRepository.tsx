@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Star, GitFork, Play, Clock, MessageSquare, Code2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -6,19 +7,35 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import type { Prompt } from '@/lib/mock-data';
-import type { NavigateHandler } from '@/types/navigation';
+import { useAppStore } from '@/store/useAppStore';
 
-interface PromptRepositoryProps {
-  prompt: Prompt;
-  onNavigate: NavigateHandler;
-}
+export function PromptRepository() {
+  const prompt = useAppStore((state) => state.selectedPrompt);
+  const setSelectedPrompt = useAppStore((state) => state.setSelectedPrompt);
+  const navigate = useNavigate();
 
-export function PromptRepository({ prompt, onNavigate }: PromptRepositoryProps) {
+  if (!prompt) {
+    return (
+      <div className="min-h-screen gradient-dark-bg gradient-overlay flex items-center justify-center px-6">
+        <div className="max-w-md text-center space-y-4">
+          <h2 className="text-2xl font-semibold">선택된 프롬프트가 없습니다</h2>
+          <p className="text-muted-foreground">
+            홈에서 프롬프트를 선택하거나 검색 결과에서 다시 시도해주세요.
+          </p>
+          <Button onClick={() => navigate('/')}>홈으로 돌아가기</Button>
+        </div>
+      </div>
+    );
+  }
+
   const [isRunning, setIsRunning] = useState(false);
   const [output, setOutput] = useState('');
   const [selectedVersion, setSelectedVersion] = useState<string | null>(null);
   const [selectedModel, setSelectedModel] = useState(prompt.model);
+  const goHome = () => {
+    setSelectedPrompt(undefined);
+    navigate('/');
+  };
 
   // Get current version data
   const getCurrentVersionData = () => {
@@ -101,7 +118,7 @@ The prompt should produce high-quality, consistent results.`;
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 sm:py-4">
           <div className="flex items-center justify-between gap-2 sm:gap-4 mb-3 sm:mb-0">
             <div className="flex items-center gap-2 sm:gap-4 min-w-0 flex-1">
-              <Button variant="ghost" size="icon" onClick={() => onNavigate('home')} className="flex-shrink-0">
+              <Button variant="ghost" size="icon" onClick={goHome} className="flex-shrink-0">
                 <ArrowLeft className="w-4 h-4 sm:w-5 sm:h-5" />
               </Button>
               <div className="min-w-0 flex-1">
@@ -121,10 +138,24 @@ The prompt should produce high-quality, consistent results.`;
                 <GitFork className="w-4 h-4 mr-2" />
                 Fork {prompt.forks}
               </Button>
-              <Button size="sm" onClick={() => onNavigate('editor', prompt)} className="hidden sm:flex">
+              <Button
+                size="sm"
+                onClick={() => {
+                  setSelectedPrompt(prompt);
+                  navigate('/editor');
+                }}
+                className="hidden sm:flex"
+              >
                 + New Version
               </Button>
-              <Button size="icon" onClick={() => onNavigate('editor', prompt)} className="sm:hidden">
+              <Button
+                size="icon"
+                onClick={() => {
+                  setSelectedPrompt(prompt);
+                  navigate('/editor');
+                }}
+                className="sm:hidden"
+              >
                 +
               </Button>
             </div>

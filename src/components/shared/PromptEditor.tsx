@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Save, Eye, Settings2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,14 +11,12 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import type { Prompt } from '@/lib/mock-data';
-import type { NavigateHandler } from '@/types/navigation';
+import { useAppStore } from '@/store/useAppStore';
 
-interface PromptEditorProps {
-  prompt?: Prompt;
-  onNavigate: NavigateHandler;
-}
-
-export function PromptEditor({ prompt, onNavigate }: PromptEditorProps) {
+export function PromptEditor() {
+  const prompt = useAppStore((state) => state.selectedPrompt);
+  const setSelectedPrompt = useAppStore((state) => state.setSelectedPrompt);
+  const navigate = useNavigate();
   const [title, setTitle] = useState(prompt?.title || '');
   const [description, setDescription] = useState(prompt?.description || '');
   const [content, setContent] = useState(prompt?.content || '');
@@ -33,7 +32,13 @@ export function PromptEditor({ prompt, onNavigate }: PromptEditorProps) {
   const handleSave = () => {
     // Mock save functionality
     alert('Prompt saved successfully!');
-    onNavigate('home');
+    setSelectedPrompt(undefined);
+    navigate('/');
+  };
+
+  const handleBack = () => {
+    setSelectedPrompt(undefined);
+    navigate('/');
   };
 
   const handlePreview = async () => {
@@ -66,7 +71,7 @@ Your prompt structure looks good! The AI will respond according to the instructi
       <header className="border-b bg-card">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between">
           <div className="flex items-center gap-2 sm:gap-4">
-            <Button variant="ghost" size="icon" onClick={() => onNavigate('home')}>
+            <Button variant="ghost" size="icon" onClick={handleBack}>
               <ArrowLeft className="w-4 h-4 sm:w-5 sm:h-5" />
             </Button>
             <h1 className="text-base sm:text-lg lg:text-xl">{prompt ? 'Edit Prompt' : 'New Prompt'}</h1>

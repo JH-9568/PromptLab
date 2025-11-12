@@ -1,4 +1,5 @@
 import { ArrowLeft, Settings, Star, GitFork, Code2, LogOut } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -6,14 +7,12 @@ import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { mockPrompts } from '@/lib/mock-data';
 import type { Prompt } from '@/lib/mock-data';
-import type { NavigateHandler } from '@/types/navigation';
+import { useAppStore } from '@/store/useAppStore';
 
-interface UserProfileProps {
-  onNavigate: NavigateHandler;
-  onLogout?: () => void;
-}
-
-export function UserProfile({ onNavigate, onLogout }: UserProfileProps) {
+export function UserProfile() {
+  const navigate = useNavigate();
+  const logout = useAppStore((state) => state.logout);
+  const setSelectedPrompt = useAppStore((state) => state.setSelectedPrompt);
   const user = {
     username: 'dev_master',
     name: '김개발',
@@ -30,11 +29,16 @@ export function UserProfile({ onNavigate, onLogout }: UserProfileProps) {
   const starredPrompts = mockPrompts.slice(2, 5);
   const forkedPrompts = mockPrompts.slice(1, 4);
 
+  const openPrompt = (prompt: Prompt) => {
+    setSelectedPrompt(prompt);
+    navigate('/repository');
+  };
+
   const renderPromptCard = (prompt: Prompt) => (
     <Card 
       key={prompt.id}
       className="card-hover cursor-pointer border-border hover:border-primary active:scale-[0.98]"
-      onClick={() => onNavigate('repository', prompt)}
+      onClick={() => openPrompt(prompt)}
     >
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between mb-2">
@@ -67,7 +71,7 @@ export function UserProfile({ onNavigate, onLogout }: UserProfileProps) {
       {/* Header */}
       <header className="border-b bg-card">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 sm:py-4 flex items-center gap-2 sm:gap-4">
-          <Button variant="ghost" size="icon" onClick={() => onNavigate('home')}>
+          <Button variant="ghost" size="icon" onClick={() => navigate('/')}>
             <ArrowLeft className="w-4 h-4 sm:w-5 sm:h-5" />
           </Button>
           <h1 className="text-base sm:text-lg lg:text-xl">프로필</h1>
@@ -109,11 +113,18 @@ export function UserProfile({ onNavigate, onLogout }: UserProfileProps) {
               </div>
 
               <div className="flex gap-2 w-full sm:w-auto">
-                <Button variant="outline" onClick={() => onNavigate('settings')} size="sm" className="flex-1 sm:flex-none">
+                <Button variant="outline" onClick={() => navigate('/settings')} size="sm" className="flex-1 sm:flex-none">
                   <Settings className="w-4 h-4 sm:mr-2" />
                   <span className="hidden sm:inline">설정</span>
                 </Button>
-                <Button onClick={() => onNavigate('editor')} size="sm" className="flex-1 sm:flex-none">
+                <Button
+                  onClick={() => {
+                    setSelectedPrompt(undefined);
+                    navigate('/editor');
+                  }}
+                  size="sm"
+                  className="flex-1 sm:flex-none"
+                >
                   <Code2 className="w-4 h-4 sm:mr-2" />
                   <span className="hidden sm:inline">새 프롬프트</span>
                 </Button>
@@ -187,16 +198,17 @@ export function UserProfile({ onNavigate, onLogout }: UserProfileProps) {
         </Card>
 
         {/* Logout Button */}
-        {onLogout && (
-          <Button 
-            variant="outline" 
-            className="w-full mt-6 text-destructive hover:bg-destructive/10 hover:text-destructive border-destructive/30"
-            onClick={onLogout}
-          >
-            <LogOut className="w-4 h-4 mr-2" />
-            로그아웃
-          </Button>
-        )}
+        <Button 
+          variant="outline" 
+          className="w-full mt-6 text-destructive hover:bg-destructive/10 hover:text-destructive border-destructive/30"
+          onClick={() => {
+            logout();
+            navigate('/auth', { replace: true });
+          }}
+        >
+          <LogOut className="w-4 h-4 mr-2" />
+          로그아웃
+        </Button>
       </div>
     </div>
   );

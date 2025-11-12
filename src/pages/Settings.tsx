@@ -1,4 +1,5 @@
 import { ArrowLeft, User, Bell, Shield, Trash2 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -7,20 +8,16 @@ import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import type { NavigateHandler } from '@/types/navigation';
 
-interface SettingsProps {
-  onNavigate: NavigateHandler;
-}
-
-export function Settings({ onNavigate }: SettingsProps) {
+export function Settings() {
+  const navigate = useNavigate();
   return (
     <div className="min-h-screen gradient-dark-bg gradient-overlay">
       {/* Header */}
       <div className="border-b bg-card">
         <div className="max-w-5xl mx-auto px-6 py-4">
           <button
-            onClick={() => onNavigate('profile')}
+            onClick={() => navigate('/profile')}
             className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors"
           >
             <ArrowLeft className="w-5 h-5" />

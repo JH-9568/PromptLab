@@ -1,18 +1,46 @@
 import { ArrowLeft, TrendingUp, Clock, Star } from 'lucide-react';
+import { useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { mockPrompts, categoryInfo } from '@/lib/mock-data';
-import type { NavigateHandler, PromptCategory } from '@/types/navigation';
+import type { Prompt } from '@/lib/mock-data';
+import { useAppStore } from '@/store/useAppStore';
 
-interface CategoryPageProps {
-  category: PromptCategory;
-  onNavigate: NavigateHandler;
-}
-
-export function CategoryPage({ category, onNavigate }: CategoryPageProps) {
+export function CategoryPage() {
+  const category = useAppStore((state) => state.selectedCategory);
+  const setSelectedPrompt = useAppStore((state) => state.setSelectedPrompt);
+  const navigate = useNavigate();
   const categoryData = categoryInfo[category];
-  const categoryPrompts = mockPrompts.filter(p => p.category === category);
+  const categoryPrompts = useMemo(
+    () => mockPrompts.filter((p) => p.category === category),
+    [category],
+  );
+
+  const openPrompt = (prompt: Prompt) => {
+    setSelectedPrompt(prompt);
+    navigate('/repository');
+  };
+
+  if (!categoryData) {
+    return (
+      <div className="min-h-screen gradient-dark-bg gradient-overlay flex items-center justify-center px-6">
+        <div className="max-w-md text-center space-y-4">
+          <h2 className="text-2xl font-semibold">카테고리를 찾을 수 없습니다</h2>
+          <p className="text-muted-foreground">
+            홈에서 다른 카테고리를 선택해주세요.
+          </p>
+          <button
+            className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-primary-foreground"
+            onClick={() => navigate('/')}
+          >
+            홈으로 돌아가기
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen gradient-dark-bg gradient-overlay">
@@ -20,7 +48,7 @@ export function CategoryPage({ category, onNavigate }: CategoryPageProps) {
       <div className="border-b bg-card">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 sm:py-6">
           <button
-            onClick={() => onNavigate('home')}
+            onClick={() => navigate('/')}
             className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors mb-3 sm:mb-4"
           >
             <ArrowLeft className="w-4 h-4 sm:w-5 sm:h-5" />
@@ -68,7 +96,7 @@ export function CategoryPage({ category, onNavigate }: CategoryPageProps) {
                 <Card 
                   key={prompt.id}
                   className="card-hover cursor-pointer border-border hover:border-primary"
-                  onClick={() => onNavigate('repository', prompt)}
+                  onClick={() => openPrompt(prompt)}
                 >
                   <CardHeader>
                     <div className="flex items-start justify-between mb-2">
@@ -104,7 +132,7 @@ export function CategoryPage({ category, onNavigate }: CategoryPageProps) {
                 <Card 
                   key={prompt.id}
                   className="card-hover cursor-pointer border-border hover:border-primary"
-                  onClick={() => onNavigate('repository', prompt)}
+                  onClick={() => openPrompt(prompt)}
                 >
                   <CardHeader>
                     <div className="flex items-start justify-between mb-2">
@@ -134,7 +162,7 @@ export function CategoryPage({ category, onNavigate }: CategoryPageProps) {
                 <Card 
                   key={prompt.id}
                   className="card-hover cursor-pointer border-border hover:border-primary"
-                  onClick={() => onNavigate('repository', prompt)}
+                  onClick={() => openPrompt(prompt)}
                 >
                   <CardHeader>
                     <div className="flex items-start justify-between mb-2">

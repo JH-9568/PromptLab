@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Play, Save, Sparkles, Settings, Clock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -8,13 +9,9 @@ import { Slider } from '@/components/ui/slider';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import type { NavigateHandler } from '@/types/navigation';
+import { useAppStore } from '@/store/useAppStore';
 
-interface PlaygroundProps {
-  onNavigate: NavigateHandler;
-}
-
-export function Playground({ onNavigate }: PlaygroundProps) {
+export function Playground() {
   const [input, setInput] = useState('');
   const [output, setOutput] = useState('');
   const [isRunning, setIsRunning] = useState(false);
@@ -74,18 +71,12 @@ Feel free to adjust the parameters and run again to see different results!`;
     }, ...prev]);
   };
 
+  const navigate = useNavigate();
+  const setSelectedPrompt = useAppStore((state) => state.setSelectedPrompt);
+
   const handleSaveAsPrompt = () => {
-    const newPrompt = {
-      title: 'New Prompt from Playground',
-      description: 'Created from playground session',
-      content: input,
-      category: 'Dev' as const,
-      tags: ['playground', 'test'],
-      model: model,
-      temperature: temperature,
-      maxTokens: maxTokens
-    };
-    onNavigate('editor', newPrompt);
+    setSelectedPrompt(undefined);
+    navigate('/editor');
   };
 
   return (
@@ -95,7 +86,7 @@ Feel free to adjust the parameters and run again to see different results!`;
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 sm:py-4">
           <div className="flex items-center justify-between gap-2 sm:gap-4 mb-3 sm:mb-0">
             <div className="flex items-center gap-2 sm:gap-4">
-              <Button variant="ghost" size="icon" onClick={() => onNavigate('home')}>
+              <Button variant="ghost" size="icon" onClick={() => navigate('/')}>
                 <ArrowLeft className="w-4 h-4 sm:w-5 sm:h-5" />
               </Button>
               <div className="flex items-center gap-2">

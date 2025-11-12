@@ -1,5 +1,6 @@
 import { Code2, User, LogOut, Settings, Users, Menu } from 'lucide-react';
 import { useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -11,31 +12,42 @@ import {
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Sheet, SheetContent, SheetTrigger, SheetTitle, SheetDescription, SheetHeader } from '@/components/ui/sheet';
 import logoImage from '@/assets/logo.png';
-import type { AppPage } from '@/types/navigation';
+import { useAppStore } from '@/store/useAppStore';
 
-interface HeaderProps {
-  currentPage: AppPage;
-  onNavigate: (page: AppPage) => void;
-  onLogout: () => void;
-  isAuthenticated: boolean;
-}
-
-export function Header({ currentPage, onNavigate, onLogout, isAuthenticated }: HeaderProps) {
+export function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const navigate = useNavigate();
+  const location = useLocation();
+  const isAuthenticated = useAppStore((state) => state.isAuthenticated);
+  const logout = useAppStore((state) => state.logout);
+  const setSelectedPrompt = useAppStore((state) => state.setSelectedPrompt);
 
   if (!isAuthenticated) return null;
 
-  const handleNavigation = (page: AppPage) => {
-    onNavigate(page);
+  const handleNavigation = (path: string) => {
+    navigate(path);
     setMobileMenuOpen(false);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
+
+  const handleLogout = () => {
+    logout();
+    navigate('/auth', { replace: true });
+  };
+
+  const goToEditor = () => {
+    setSelectedPrompt(undefined);
+    handleNavigation('/editor');
+  };
+
+  const isActive = (path: string) => location.pathname === path;
 
   return (
     <header className="glass-strong sticky top-0 z-50 border-b">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between">
         <div className="flex items-center gap-4 sm:gap-8">
           <button
-            onClick={() => handleNavigation('home')}
+            onClick={() => handleNavigation('/')}
             className="flex items-center gap-2 sm:gap-3 hover:opacity-80 transition-opacity"
           >
             <img src={logoImage} alt="PromptLab" className="w-8 h-8 sm:w-10 sm:h-10 object-contain" />
@@ -45,9 +57,9 @@ export function Header({ currentPage, onNavigate, onLogout, isAuthenticated }: H
           {/* Desktop Navigation */}
           <nav className="hidden lg:flex items-center gap-6">
             <button 
-              onClick={() => handleNavigation('home')}
+              onClick={() => handleNavigation('/')}
               className={`transition-colors ${
-                currentPage === 'home' 
+                isActive('/') 
                   ? 'text-foreground' 
                   : 'text-muted-foreground hover:text-foreground'
               }`}
@@ -55,9 +67,9 @@ export function Header({ currentPage, onNavigate, onLogout, isAuthenticated }: H
               Home
             </button>
             <button 
-              onClick={() => handleNavigation('playground')}
+              onClick={() => handleNavigation('/playground')}
               className={`transition-colors ${
-                currentPage === 'playground' 
+                isActive('/playground') 
                   ? 'text-foreground' 
                   : 'text-muted-foreground hover:text-foreground'
               }`}
@@ -65,9 +77,9 @@ export function Header({ currentPage, onNavigate, onLogout, isAuthenticated }: H
               Playground
             </button>
             <button 
-              onClick={() => handleNavigation('team')}
+              onClick={() => handleNavigation('/team')}
               className={`flex items-center gap-1.5 transition-colors ${
-                currentPage === 'team' 
+                isActive('/team') 
                   ? 'text-foreground' 
                   : 'text-muted-foreground hover:text-foreground'
               }`}
@@ -76,9 +88,9 @@ export function Header({ currentPage, onNavigate, onLogout, isAuthenticated }: H
               Team
             </button>
             <button 
-              onClick={() => handleNavigation('profile')}
+              onClick={() => handleNavigation('/profile')}
               className={`transition-colors ${
-                currentPage === 'profile' 
+                isActive('/profile') 
                   ? 'text-foreground' 
                   : 'text-muted-foreground hover:text-foreground'
               }`}
@@ -91,7 +103,7 @@ export function Header({ currentPage, onNavigate, onLogout, isAuthenticated }: H
         <div className="flex items-center gap-2 sm:gap-3">
           {/* Desktop New Prompt Button */}
           <Button 
-            onClick={() => handleNavigation('editor')} 
+            onClick={goToEditor} 
             className="hidden sm:flex glow-primary bg-primary hover:bg-primary/90"
             size="sm"
           >
@@ -101,7 +113,7 @@ export function Header({ currentPage, onNavigate, onLogout, isAuthenticated }: H
 
           {/* Mobile New Prompt Button */}
           <Button 
-            onClick={() => handleNavigation('editor')} 
+            onClick={goToEditor} 
             className="sm:hidden glow-primary bg-primary hover:bg-primary/90"
             size="icon"
           >
@@ -125,16 +137,16 @@ export function Header({ currentPage, onNavigate, onLogout, isAuthenticated }: H
                 <p className="text-xs text-muted-foreground">@dev_master</p>
               </div>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => handleNavigation('profile')}>
+              <DropdownMenuItem onClick={() => handleNavigation('/profile')}>
                 <User className="w-4 h-4 mr-2" />
                 프로필
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleNavigation('settings')}>
+              <DropdownMenuItem onClick={() => handleNavigation('/settings')}>
                 <Settings className="w-4 h-4 mr-2" />
                 설정
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={onLogout} className="text-destructive">
+              <DropdownMenuItem onClick={handleLogout} className="text-destructive">
                 <LogOut className="w-4 h-4 mr-2" />
                 로그아웃
               </DropdownMenuItem>
@@ -155,9 +167,9 @@ export function Header({ currentPage, onNavigate, onLogout, isAuthenticated }: H
               </SheetHeader>
               <nav className="flex flex-col gap-4 mt-8">
                 <button 
-                  onClick={() => handleNavigation('home')}
+                  onClick={() => handleNavigation('/')}
                   className={`text-left px-4 py-3 rounded-lg transition-colors ${
-                    currentPage === 'home' 
+                    isActive('/') 
                       ? 'bg-primary text-primary-foreground' 
                       : 'hover:bg-muted'
                   }`}
@@ -165,9 +177,9 @@ export function Header({ currentPage, onNavigate, onLogout, isAuthenticated }: H
                   Home
                 </button>
                 <button 
-                  onClick={() => handleNavigation('playground')}
+                  onClick={() => handleNavigation('/playground')}
                   className={`text-left px-4 py-3 rounded-lg transition-colors ${
-                    currentPage === 'playground' 
+                    isActive('/playground') 
                       ? 'bg-primary text-primary-foreground' 
                       : 'hover:bg-muted'
                   }`}
@@ -175,9 +187,9 @@ export function Header({ currentPage, onNavigate, onLogout, isAuthenticated }: H
                   Playground
                 </button>
                 <button 
-                  onClick={() => handleNavigation('team')}
+                  onClick={() => handleNavigation('/team')}
                   className={`text-left px-4 py-3 rounded-lg transition-colors flex items-center gap-2 ${
-                    currentPage === 'team' 
+                    isActive('/team') 
                       ? 'bg-primary text-primary-foreground' 
                       : 'hover:bg-muted'
                   }`}
@@ -186,9 +198,9 @@ export function Header({ currentPage, onNavigate, onLogout, isAuthenticated }: H
                   Team
                 </button>
                 <button 
-                  onClick={() => handleNavigation('profile')}
+                  onClick={() => handleNavigation('/profile')}
                   className={`text-left px-4 py-3 rounded-lg transition-colors ${
-                    currentPage === 'profile' 
+                    isActive('/profile') 
                       ? 'bg-primary text-primary-foreground' 
                       : 'hover:bg-muted'
                   }`}
