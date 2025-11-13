@@ -1,11 +1,8 @@
-// src/routes.js
-import { Router } from 'express';
-// import authRouter from './modules/auth/auth.router.js';
-// import settingsRouter from './modules/settings/settings.router.js';
+const express = require('express');
+const router = express.Router();
 
-const router = Router();
+const promptRouter = require('./modules/prompts/prompt.router');
 
-// router.use('/auth', authRouter);
-// router.use('/settings', settingsRouter);
+router.use('/prompts', promptRouter);
 
-export default router;
+module.exports = router;

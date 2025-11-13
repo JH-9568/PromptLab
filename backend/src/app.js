@@ -17,6 +17,7 @@ app.get('/health', function(req,res){ res.json({ ok:true }); });
 app.use('/api/v1/prompts', promptRouter);
 
 app.use(function(err, req, res, next){
+  console.error('❌ Error middleware:', err);
   res.status(err.status || 500).json({ error: err.message });
 });
 

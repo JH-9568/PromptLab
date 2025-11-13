@@ -102,16 +102,28 @@ exports.deleteVersion = function(req, res, next){
 };
 
 // 모델 세팅
-exports.getModelSetting = function(req, res, next){
-  const userId = req.user.id;
-  const promptId = Number(req.params.id);
-  const verId = Number(req.params.verId);
-  svc.getModelSetting(userId, promptId, verId, function(err, ms){
-    if (err) return next(err);
-    if (!ms) return res.status(404).json({ error: 'not found' });
-    res.json(ms);
-  });
+exports.getModelSetting = async (req, res, next) => {
+  try {
+    const out = await svc.getModelSetting(
+      req.user.id,                    // userId
+      Number(req.params.id),          // promptId (라우트의 :id)
+      Number(req.params.verId)        // verId (라우트의 :verId)
+    );
+    
+    // 서비스에서 에러(404)를 throw하지 않고 null을 반환할 경우를 대비하여 404 처리
+    // (현재 서비스는 404를 throw 하므로 사실상 불필요하지만, 패턴을 위해 유지)
+    if (!out) {
+        return res.status(404).json({ error: 'Model setting not found' });
+    }
+    
+    return res.json(out);
+    
+  } catch (e) { 
+    // 서비스에서 throw된 에러(403, 404 등)를 Express 에러 핸들러로 넘깁니다.
+    next(e); 
+  }
 };
+
 
 exports.updateModelSetting = function(req, res, next){
   const userId = req.user.id;

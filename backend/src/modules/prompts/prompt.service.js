@@ -9,14 +9,17 @@ function httpError(status, msg){
 function withTx(work, done){
   pool.getConnection(function(err, conn){
     if (err) return done(err);
+    console.log('→ TX 시작');
     conn.beginTransaction(function(err2){
       if (err2) { conn.release(); return done(err2); }
       work(conn, function(workErr, result){
         if (workErr) {
+          console.log('⚠️ TX rollback:', workErr);
           return conn.rollback(function(){
             conn.release(); done(workErr);
           });
         }
+        console.log('✅ TX commit');
         conn.commit(function(cErr){
           conn.release();
           done(cErr, result);
@@ -334,58 +337,97 @@ exports.createVersion = function(userId, promptId, body, done){
     ensureOwner(conn, userId, promptId, function(err){
       if (err) return cb(err);
 
-      conn.query('SELECT IFNULL(MAX(version_number), 0) + 1 AS next_no FROM prompt_version WHERE prompt_id = ?', [promptId], function(err2, cnt){
-        if (err2) return cb(err2);
-        const version_number = Number(cnt[0].c) + 1;
+      conn.query(
+        'SELECT IFNULL(MAX(version_number), 0) + 1 AS next_no FROM prompt_version WHERE prompt_id = ?',
+        [promptId],
+        function(err2, cnt){
+          if (err2) return cb(err2);
+          const version_number = cnt[0].next_no;
 
-        getCategoryIdByCode(conn, body.category_code, function(err3, categoryId){
-          if (err3) return cb(err3);
+          getCategoryIdByCode(conn, body.category_code, function(err3, categoryId){
+            if (err3) return cb(err3);
 
-          conn.query(
-            `INSERT INTO prompt_version
-             (prompt_id, version_number, commit_message, content, is_draft, revision, created_by, category_id)
-             VALUES (?, ?, ?, ?, ?, 1, ?, ?)`,
-            [promptId, version_number, body.commit_message, body.content, body.is_draft ? 1 : 0, userId, categoryId],
-            function(err4, vr){
-              if (err4) return cb(err4);
-              const verId = vr.insertId;
-
-              function doneModelSetting(next){
-                if (!body.model_setting) return next();
-                const ms = body.model_setting;
+            // ✅ 1) 이번 버전을 확정(is_draft=false)으로 만들 거라면
+            //    기존 확정 버전들(is_draft = 0)을 모두 1로 올려준다.
+            function updateOldDrafts(next){
+              if (body.is_draft === false) {
                 conn.query(
-                  `INSERT INTO model_setting
-                   (prompt_version_id, ai_model_id, temperature, max_token, top_p, frequency_penalty, presence_penalty)
-                   VALUES (?, ?, ?, ?, ?, ?, ?)`,
-                  [
-                    verId,
-                    ms.ai_model_id,
-                    ms.temperature || 1.0,
-                    ms.max_token || null,
-                    ms.top_p || null,
-                    ms.frequency_penalty || null,
-                    ms.presence_penalty || null
-                  ],
-                  function(err5){ next(err5); }
+                  'UPDATE prompt_version SET is_draft = 1 WHERE prompt_id = ? AND is_draft = 0',
+                  [promptId],
+                  function(err) { next(err); }
                 );
+              } else {
+                next(null);
               }
-
-              doneModelSetting(function(err5){
-                if (err5) return cb(err5);
-                if (body.is_draft) return cb(null, { id: verId, version_number, is_draft: true });
-
-                conn.query('UPDATE prompt SET latest_version_id = ? WHERE id = ?', [verId, promptId], function(err6){
-                  if (err6) return cb(err6);
-                  cb(null, { id: verId, version_number, is_draft: false });
-                });
-              });
             }
-          );
-        });
-      });
+
+            updateOldDrafts(function(err4){
+              if (err4) return cb(err4);
+
+              // ✅ 2) 새 버전 insert
+              conn.query(
+                `INSERT INTO prompt_version
+                 (prompt_id, version_number, commit_message, content, is_draft, revision, created_by, category_id)
+                 VALUES (?, ?, ?, ?, ?, 1, ?, ?)`,
+                [
+                  promptId,
+                  version_number,
+                  body.commit_message,
+                  body.content,
+                  body.is_draft ? 1 : 0,
+                  userId,
+                  categoryId
+                ],
+                function(err5, vr){
+                  if (err5) return cb(err5);
+                  const verId = vr.insertId;
+
+                  function doneModelSetting(next){
+                    if (!body.model_setting) return next();
+                    const ms = body.model_setting;
+                    conn.query(
+                      `INSERT INTO model_setting
+                       (prompt_version_id, ai_model_id, temperature, max_token, top_p, frequency_penalty, presence_penalty)
+                       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                      [
+                        verId,
+                        ms.ai_model_id,
+                        ms.temperature || 1.0,
+                        ms.max_token || null,
+                        ms.top_p || null,
+                        ms.frequency_penalty || null,
+                        ms.presence_penalty || null
+                      ],
+                      function(err6){ next(err6); }
+                    );
+                  }
+
+                  doneModelSetting(function(err7){
+                    if (err7) return cb(err7);
+
+                    if (body.is_draft) {
+                      return cb(null, { id: verId, version_number, is_draft: true });
+                    }
+
+                    conn.query(
+                      'UPDATE prompt SET latest_version_id = ? WHERE id = ?',
+                      [verId, promptId],
+                      function(err8){
+                        if (err8) return cb(err8);
+                        cb(null, { id: verId, version_number, is_draft: false });
+                      }
+                    );
+                  });
+                }
+              );
+            });
+          });
+        }
+      );
     });
   }, done);
 };
+
 
 exports.getVersion = function(userId, promptId, verId, done){
   pool.query('SELECT owner_id FROM prompt WHERE id = ?', [promptId], function(err, r){
@@ -505,17 +547,22 @@ exports.deleteVersion = function(userId, promptId, verId, done){
 };
 
 // 모델 세팅
-exports.getModelSetting = function(userId, promptId, verId, done){
-  pool.query('SELECT owner_id FROM prompt WHERE id = ?', [promptId], function(err, r){
-    if (err) return done(err);
-    if (!r.length) return done(httpError(404,'Prompt not found'));
-    if (r[0].owner_id !== userId) return done(httpError(403,'Forbidden'));
-    pool.query('SELECT * FROM model_setting WHERE prompt_version_id = ?', [verId], function(e2, rows){
-      if (e2) return done(e2);
-      done(null, rows[0] || null);
-    });
-  });
+exports.getModelSetting = async (userId, promptId, verId) => {
+  
+  // 1. pool.query에 콜백 대신 await을 사용합니다.
+  const [r] = await pool.query('SELECT owner_id FROM prompt WHERE id = ?', [promptId]);
+
+  // 2. 에러 및 권한 검사
+  if (!r.length) throw httpError(404,'Prompt not found');
+  if (r[0].owner_id !== userId) throw httpError(403,'Forbidden');
+
+  // 3. 두 번째 쿼리 실행
+  const [rows] = await pool.query('SELECT * FROM model_setting WHERE prompt_version_id = ?', [verId]);
+
+  // 4. 콜백(done) 대신, 값을 바로 return 합니다.
+  return rows[0] || null;
 };
+
 
 exports.updateModelSetting = function(userId, promptId, verId, patch, done){
   withTx(function(conn, cb){
