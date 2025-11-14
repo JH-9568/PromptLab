@@ -7,6 +7,25 @@ const crypto = require('crypto');
 // (TODO: Email 변경 기능) 이메일 전송 서비스
 // const { sendEmailChangeVerification } = require('../auth/email'); 
 
+// (유틸) 쿼리 파라미터에서 옵션 추출
+const extractListOptions = (query) => ({
+  page: parseInt(query.page, 10) || 1,
+  limit: parseInt(query.limit, 10) || 20,
+  sort: query.sort,
+  q: query.q,
+  category: query.category,
+  action: query.action,
+});
+
+// (유틸) 페이지네이션 응답 포맷
+const formatPaginatedResponse = (data, page, limit) => ({
+  items: data.items,
+  page: page,
+  limit: limit,
+  total: data.total,
+});
+
+
 const usersController = {
 
   /**
@@ -161,25 +180,153 @@ const usersController = {
     }
   },
   
-  // --- (TODO) 3, 4, 5, 6, 7 API ---
-  // (prompts, favorites, forks, activity, export)
-  // 이 API들은 스펙이 복잡하므로 (페이지네이션, 정렬, 쿼리)
-  // 우선 "준비 중"인 응답을 반환합니다.
+  // --- [수정] 3, 4, 5, 6, 7 API (실제 로직 구현) ---
 
+  /**
+   * 3) 내가 만든 프롬프트 목록
+   * GET /users/:userid/prompts
+   */
   getPrompts: async (req, res, next) => {
-    res.status(501).json({ error: { code: 'NOT_IMPLEMENTED', message: 'API not yet implemented.' }});
+    try {
+      const { userid } = req.params;
+      const loggedInUser = req.user; // (optionalAuth)
+      const options = extractListOptions(req.query);
+
+      // 1. 대상 유저의 ID 찾기
+      const targetUser = await usersService.getUserByUserid(userid);
+      if (!targetUser) {
+        return next(new NotFoundError('USER_NOT_FOUND', 'Target user not found.'));
+      }
+      
+      // 2. 서비스 호출
+      const data = await usersService.getPromptsByUserid(
+        targetUser.id, 
+        loggedInUser ? loggedInUser.id : null, 
+        options
+      );
+
+      // 3. 응답 포맷
+      res.status(200).json(formatPaginatedResponse(data, options.page, options.limit));
+
+    } catch (error) {
+      next(error);
+    }
   },
+
+  /**
+   * 4) 내가 즐겨찾기한 프롬프트
+   * GET /users/:userid/favorites
+   */
   getFavorites: async (req, res, next) => {
-    res.status(501).json({ error: { code: 'NOT_IMPLEMENTED', message: 'API not yet implemented.' }});
+    try {
+      const { userid } = req.params;
+      const loggedInUser = req.user; // (optionalAuth)
+      const options = extractListOptions(req.query);
+
+      // 1. 대상 유저 ID 찾기
+      const targetUser = await usersService.getUserByUserid(userid);
+      if (!targetUser) {
+        return next(new NotFoundError('USER_NOT_FOUND', 'Target user not found.'));
+      }
+
+      // 2. 서비스 호출 (권한 검사는 서비스 내부에서)
+      const data = await usersService.getFavoritesByUserid(
+        targetUser.id, 
+        loggedInUser ? loggedInUser.id : null, 
+        options
+      );
+      
+      // 3. 응답 포맷
+      res.status(200).json(formatPaginatedResponse(data, options.page, options.limit));
+
+    } catch (error) {
+      // (스펙) 본인만 접근 가능
+      if (error.message === 'FORBIDDEN') {
+        return next(new ForbiddenError('FORBIDDEN', 'You can only view your own favorites.'));
+      }
+      next(error);
+    }
   },
+
+  /**
+   * 5) 내가 포크한 프롬프트
+   * GET /users/:userid/forks
+   */
   getForks: async (req, res, next) => {
-    res.status(501).json({ error: { code: 'NOT_IMPLEMENTED', message: 'API not yet implemented.' }});
+    try {
+      const { userid } = req.params;
+      const loggedInUser = req.user; // (optionalAuth)
+      const options = extractListOptions(req.query);
+
+      const targetUser = await usersService.getUserByUserid(userid);
+      if (!targetUser) {
+        return next(new NotFoundError('USER_NOT_FOUND', 'Target user not found.'));
+      }
+
+      const data = await usersService.getForksByUserid(
+        targetUser.id, 
+        loggedInUser ? loggedInUser.id : null, 
+        options
+      );
+      
+      res.status(200).json(formatPaginatedResponse(data, options.page, options.limit));
+
+    } catch (error) {
+      if (error.message === 'FORBIDDEN') {
+        return next(new ForbiddenError('FORBIDDEN', 'You can only view your own forks.'));
+      }
+      next(error);
+    }
   },
+
+  /**
+   * 6) 활동 로그
+   * GET /users/:userid/activity
+   */
   getActivity: async (req, res, next) => {
-    res.status(501).json({ error: { code: 'NOT_IMPLEMENTED', message: 'API not yet implemented.' }});
+    try {
+      const { userid } = req.params;
+      const loggedInUser = req.user; // (optionalAuth)
+      const options = extractListOptions(req.query);
+
+      const targetUser = await usersService.getUserByUserid(userid);
+      if (!targetUser) {
+        return next(new NotFoundError('USER_NOT_FOUND', 'Target user not found.'));
+      }
+
+      const data = await usersService.getActivityByUserid(
+        targetUser.id, 
+        loggedInUser ? loggedInUser.id : null, 
+        options
+      );
+      
+      res.status(200).json(formatPaginatedResponse(data, options.page, options.limit));
+
+    } catch (error) {
+      if (error.message === 'FORBIDDEN') {
+        return next(new ForbiddenError('FORBIDDEN', 'You can only view your own activity log.'));
+      }
+      next(error);
+    }
   },
+
+  /**
+   * 7) 내 데이터 내보내기(요청)
+   * GET /users/:userid/export
+   */
   exportData: async (req, res, next) => {
-    res.status(501).json({ error: { code: 'NOT_IMPLEMENTED', message: 'API not yet implemented.' }});
+    try {
+      // (isSelf 미들웨어가 통과했으므로 req.user.id는 본인 ID임)
+      const userId = req.user.id;
+      
+      // (스펙) 비동기 작업 요청
+      const job = await usersService.requestExport(userId);
+      
+      res.status(202).json(job); // (202 Accepted)
+
+    } catch (error) {
+      next(error);
+    }
   },
 
 };
