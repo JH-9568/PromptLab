@@ -41,59 +41,56 @@ exports.grammarCheck = async function (req, res, next) {
 };
 
 // 3) 히스토리 목록
-exports.listHistory = function (req, res, next) {
-  const userId = req.user && req.user.id;
-  const query = req.query || {};
+exports.listHistory = async function (req, res, next) {
+  try {
+    const userId = req.user && req.user.id;
+    const query  = req.query || {};
 
-  console.log('[playground/history list] user:', userId, 'query:', query);
-
-  svc.listHistory(userId, query, function (err, result) {
-    if (err) return next(err);
-    // { items: [], page, limit, total }
-    return res.json(result);
-  });
+    svc.listHistory(userId, query, function (err, result) {
+      if (err) return next(err);
+      res.json(result);
+    });
+  } catch (err) {
+    next(err);
+  }
 };
+
 
 // 4) 히스토리 상세
 exports.getHistory = function (req, res, next) {
-  const userId = req.user && req.user.id;
-  const hid = Number(req.params.id);
+  const userId    = req.user && req.user.id;
+  const historyId = Number(req.params.id);
 
-  console.log('[playground/history detail] user:', userId, 'id:', hid);
-
-  svc.getHistory(userId, hid, function (err, result) {
+  svc.getHistory(userId, historyId, function (err, data) {
     if (err) return next(err);
-    if (!result) return res.status(404).json({ error: 'not found' });
-    return res.json(result);
+    res.json(data);
   });
 };
 
 // 5) 히스토리 삭제
 exports.deleteHistory = function (req, res, next) {
-  const userId = req.user && req.user.id;
-  const hid = Number(req.params.id);
+  const userId    = req.user && req.user.id;
+  const historyId = Number(req.params.id);
 
-  console.log('[playground/history delete] user:', userId, 'id:', hid);
-
-  svc.deleteHistory(userId, hid, function (err) {
+  svc.deleteHistory(userId, historyId, function (err) {
     if (err) return next(err);
-    return res.status(204).end();
+    res.status(204).end();
   });
 };
+
+
 
 // 6) 저장(프롬프트/버전화 연동)
 exports.saveFromPlayground = function (req, res, next) {
   const userId = req.user && req.user.id;
-  const body = req.body || {};
-
-  console.log('[playground/save] user:', userId, 'body:', body);
+  const body   = req.body || {};
 
   svc.saveFromPlayground(userId, body, function (err, result) {
     if (err) return next(err);
-    // new_prompt / new_version 둘 다 201
-    return res.status(201).json(result);
+    res.status(201).json(result);
   });
 };
+
 
 // 7) 설정 조회
 exports.getSettings = function (req, res, next) {

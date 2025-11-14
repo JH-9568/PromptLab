@@ -1,12 +1,10 @@
-// src/shared/db.js
+// shared/db.js
+const mysql = require('mysql2')
 
-// 1) 반드시 'mysql2/promise' 를 써야 함
-const mysql = require('mysql2/promise');
+const dbPort = process.env.DB_PORT
+  ? parseInt(process.env.DB_PORT, 10)
+  : 3306;
 
-// 2) 포트 숫자로 파싱
-const dbPort = process.env.DB_PORT ? parseInt(process.env.DB_PORT, 10) : 3306;
-
-// 3) Promise 기반 풀 생성
 const pool = mysql.createPool({
   host: process.env.DB_HOST,
   port: dbPort,
@@ -17,15 +15,14 @@ const pool = mysql.createPool({
   charset: 'utf8mb4',
 });
 
-// 4) 테스트용 로그
-(async () => {
-  try {
-    const conn = await pool.getConnection();
+// 연결 테스트
+pool.getConnection((err, conn) => {
+  if (err) {
+    console.error('❌ DB 연결 풀 생성 오류:', err.message);
+  } else {
     console.log('🚀 DB 연결 풀 생성 및 테스트 성공!');
     conn.release();
-  } catch (err) {
-    console.error('❌ DB 연결 풀 생성 오류:', err.message);
   }
-})();
+});
 
 module.exports = pool;
