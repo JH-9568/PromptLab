@@ -1,38 +1,47 @@
 const express = require('express');
+const cors = require('cors');
 const morgan = require('morgan');
-const helmet = require('helmet');
-const compression = require('compression');
-require('dotenv').config();
-
-const promptRouter = require('./modules/prompts/prompt.router');
-const authRouter = require('./modules/auth/auth.router');
-const usersRouter = require('./modules/users/users.router');
-const workspacesRouter = require('./modules/workspaces/workspaces.router');
+const passport = require('passport');
+const setupPassport = require('../modules/auth/passport');
+const mainRouter = require('./routes');
+const { ApiError, NotFoundError } = require('./error');
 
 const app = express();
-app.use(express.json({ limit: '1mb' }));
+
+// 미들웨어 설정
+app.use(cors()); 
 app.use(morgan('dev'));
-app.use(helmet());
-app.use(compression());
+app.use(express.json());
 
-// 헬스
-app.get('/health', (_req,res)=>res.json({ ok:true }));
+// Passport.js 초기화
+app.use(passport.initialize());
+setupPassport(passport); 
 
-// API v1
-app.use('/api/v1/auth', authRouter);
-app.use('/api/v1/users', usersRouter);
-app.use('/api/v1/workspaces', workspacesRouter);
-app.use('/api/v1/prompts', promptRouter);
+// --- [수정] 베이스 URL /api/v1로 변경 ---
+app.use('/api/v1', mainRouter);
 
-// 404
-app.use((req, res) => res.status(404).json({ error: 'NOT_FOUND', path: req.originalUrl }));
+// 404 처리 미들웨어
+app.use((req, res, next) => {
+  next(new NotFoundError('NOT_FOUND', 'API endpoint not found'));
+});
 
-// 에러 핸들러
-app.use((err, req, res, _next) => {
-  const status = err.status || 500;
-  const code = err.code || 'INTERNAL_ERROR';
-  const message = process.env.NODE_ENV === 'production' ? 'Internal error' : err.message;
-  res.status(status).json({ error: code, message });
+// --- [수정] 글로벌 에러 핸들러 (PDF 스펙) ---
+app.use((err, req, res, next) => {
+  console.error(err);
+  
+  // ApiError가 아닌 경우 기본 500 에러로 변환
+  if (!(err instanceof ApiError)) {
+    err = new ApiError(500, 'INTERNAL_SERVER_ERROR', 'Internal Server Error');
+  }
+
+  // PDF 에러 포맷
+  res.status(err.statusCode).json({
+    error: {
+      code: err.code,
+      message: err.message,
+      details: null // PDF 스펙에 따라 null
+    }
+  });
 });
 
 module.exports = app;

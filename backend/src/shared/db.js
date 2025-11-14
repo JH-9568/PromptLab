@@ -1,14 +1,25 @@
-const mysql = require('mysql');
+const mysql = require('mysql2/promise');
+const url = new URL(process.env.DATABASE_URL);
 
+// 연결 옵션 파싱
 const pool = mysql.createPool({
-  // Railway면 환경변수 맞게 넣으세요
-  host: process.env.DB_HOST,
-  port: process.env.DB_PORT || 3306,
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
-  database: process.env.DB_NAME,
+  host: url.hostname,
+  port: url.port || 3306,
+  user: url.username,
+  password: url.password,
+  database: url.pathname.replace(/^\//, ''),
+  waitForConnections: true,
   connectionLimit: 10,
-  charset: 'utf8mb4'
+  // Railway Proxy는 대개 SSL 불필요하지만, 필요하면 다음 줄 주석 해제
+  // ssl: { rejectUnauthorized: false },
+  timezone: 'Z',           // UTC로 고정
+  dateStrings: true        // DATETIME을 문자열로 받기
 });
 
-module.exports = pool;
+// 통일 wrapper
+async function query(sql, params) {
+  const [rows] = await pool.execute(sql, params);
+  return { rows };
+}
+
+module.exports = { pool, query };

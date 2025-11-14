@@ -1,23 +1,11 @@
-// src/routes.js
-import { Router } from 'express';
+const express = require('express');
+const authRouter = require('../modules/auth/auth.router');
+// const userRouter = require('../modules/users/user.router');
 
-// 모듈 라우터들
-import authRouter from './modules/auth/auth.router.js';
-import usersRouter from './modules/users/users.router.js';
-import promptsRouter from './modules/prompts/prompts.router.js';
-import exploreRouter from './modules/explore/explore.router.js';
-import playgroundRouter from './modules/playground/playground.router.js';
+const router = express.Router();
 
-const router = Router();
+// '/api/v1/auth' 경로로 authRouter를 연결
+router.use('/auth', authRouter);
+// router.use('/users', userRouter); // (User API 구현 시)
 
-// 헬스체크(배포/모니터링용)
-router.get('/healthz', (_req, res) => res.status(200).json({ ok: true }));
-
-// 버전 프리픽스 붙여서 모듈 묶기
-router.use('/v1/auth', authRouter);
-router.use('/v1/users', usersRouter);
-router.use('/v1/prompts', promptsRouter);
-router.use('/v1/explore', exploreRouter);
-router.use('/v1/playground', playgroundRouter);
-
-export default router;
+module.exports = router;

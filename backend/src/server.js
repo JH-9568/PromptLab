@@ -1,17 +1,23 @@
-const http = require('http');
 const app = require('./app');
-const { pool } = require('./shared/db');
+const config = require('../config');
+const pool = require('./db');
+// const logger = require('../config/logger'); // (logger.js가 있다고 가정)
 
-const PORT = process.env.PORT || 8080;
-const server = http.createServer(app);
-
-server.listen(PORT, () => console.log(`API listening on :${PORT}`));
-
-async function shutdown(sig){
-  console.log(`\n${sig} received. Closing...`);
-  server.close(async () => {
-    try { await pool.end(); } catch {}
-    process.exit(0);
+// DB 연결 테스트
+pool.getConnection()
+  .then(conn => {
+    // logger.info('MySQL Connected...');
+    console.log('MySQL Connected...');
+    conn.release(); // 연결 반환
+    
+    // DB 연결이 성공해야만 서버를 시작
+    app.listen(config.port, () => {
+      // logger.info(`Server running on port ${config.port}`);
+      console.log(`Server running on port ${config.port}`);
+    });
+  })
+  .catch(err => {
+    // logger.error('MySQL Connection Error:', err.message);
+    console.error('MySQL Connection Error:', err.message);
+    process.exit(1); // DB 연결 실패 시 프로세스 종료
   });
-}
-['SIGINT','SIGTERM'].forEach(s => process.on(s, () => shutdown(s)));
