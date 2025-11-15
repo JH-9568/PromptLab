@@ -1,11 +1,18 @@
-// src/server.js
-require('dotenv').config();
 const app = require('./app');
+const config = require('./config');
+const pool = require('./shared/db');
 
-const PORT = process.env.PORT || 3000;
-const NODE_ENV = process.env.NODE_ENV || 'development';
+// DB 연결 테스트 (콜백 스타일)
+pool.getConnection((err, conn) => {
+  if (err) {
+    console.error('MySQL Connection Error:', err.message);
+    process.exit(1);
+  }
 
-app.listen(PORT, () => {
-  console.log(`🚀 Server running in ${NODE_ENV} mode on port ${PORT}`);
-  console.log(`Health check: http://localhost:${PORT}/health`);
+  console.log('MySQL Connected...');
+  if (conn) conn.release();
+
+  app.listen(config.port, () => {
+    console.log(`Server running on port ${config.port}`);
+  });
 });
