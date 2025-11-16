@@ -199,15 +199,13 @@ exports.grammarCheck = function(userId, body, cb) {
 };
 
 // 3) 히스토리 목록
-exports.listHistory = async function (userId, query, cb) {
+exports.listHistory = function (userId, query, cb) {
   try {
-    const page  = Number(query.page)  > 0 ? Number(query.page)  : 1;
-    const limit = Number(query.limit) > 0 && Number(query.limit) <= 100
-      ? Number(query.limit)
-      : 20;
+    const page  = query.page  ? Number(query.page)  : 1;
+    const limit = query.limit ? Number(query.limit) : 20; // 기본 20
     const offset = (page - 1) * limit;
 
-    const where = ['user_id = ?'];
+    const where  = ['user_id = ?'];
     const params = [userId];
 
     // model_id 필터
@@ -216,122 +214,146 @@ exports.listHistory = async function (userId, query, cb) {
       params.push(Number(query.model_id));
     }
 
-    // 날짜 필터: from, to (YYYY-MM-DD)
-    if (query.from) {
-      where.push('tested_at >= ?');
-      params.push(query.from);              // '2025-11-13' 이런 식
-    }
-    if (query.to) {
-      where.push('tested_at <= ?');
-      params.push(query.to + ' 23:59:59');  // 끝날짜 하루의 끝까지
+    // prompt_version_id 필터
+    if (query.prompt_version_id) {
+      where.push('prompt_version_id = ?');
+      params.push(Number(query.prompt_version_id));
     }
 
     const whereSql = 'WHERE ' + where.join(' AND ');
 
-    // total 개수
-    const countSql = `
-      SELECT COUNT(*) AS cnt
-      FROM playground_history
-      ${whereSql}
-    `;
-    const [cntRows] = await pool.query(countSql, params);
-    const total = Number(cntRows[0].cnt) || 0;
-
-    // 실제 목록
     const listSql = `
       SELECT
         id,
         prompt_version_id,
         model_id,
-        tested_at,
-        CHAR_LENGTH(test_content) AS input_len,
-        CHAR_LENGTH(output)      AS output_len
+        user_id,
+        test_content,
+        model_setting,
+        output,
+        tested_at
       FROM playground_history
       ${whereSql}
       ORDER BY tested_at DESC
       LIMIT ? OFFSET ?
     `;
-    const listParams = params.slice();
-    listParams.push(limit, offset);
 
-    const [rows] = await pool.promise().query(listSql, listParams);
+    // 1단계: 목록 조회
+    pool.query(
+      listSql,
+      [...params, limit, offset],
+      function (err, rows) {
+        if (err) return cb(err);
 
-    const items = rows.map(r => ({
-      id: r.id,
-      prompt_version_id: r.prompt_version_id,
-      model_id: r.model_id,
-      tested_at: r.tested_at,
-      summary: {
-        input_len: r.input_len,
-        output_len: r.output_len,
-        analyzer_score: null,   // 아직 analyzer 결과는 DB에 없으니까 null
-        status: 'success'       // 지금은 전부 success로 가정
+        // 2단계: total 카운트
+        pool.query(
+          `
+          SELECT COUNT(*) AS total
+          FROM playground_history
+          ${whereSql}
+        `,
+          params,
+          function (err2, countRows) {
+            if (err2) return cb(err2);
+
+            const total = countRows[0] ? Number(countRows[0].total) : 0;
+
+            // 3단계: 결과 매핑
+            const items = rows.map((row) => {
+              let modelSetting = row.model_setting;
+
+              if (typeof modelSetting === 'string') {
+                try {
+                  modelSetting = JSON.parse(modelSetting);
+                } catch (e) {
+                  // 파싱 실패 시 그대로 둠
+                }
+              }
+
+              return {
+                id: row.id,
+                prompt_version_id: row.prompt_version_id,
+                model_id: row.model_id,
+                user_id: row.user_id,
+                test_content: row.test_content,
+                model_setting: modelSetting,
+                output: row.output,
+                tested_at: row.tested_at,
+                analyzer: {
+                  enabled: false
+                }
+              };
+            });
+
+            return cb(null, { items, page, limit, total });
+          }
+        );
       }
-    }));
-
-    cb(null, { items, page, limit, total });
+    );
   } catch (err) {
     cb(err);
   }
 };
+
 
 
 // 4) 히스토리 상세
-exports.getHistory = async function (userId, historyId, cb) {
+exports.getHistory = function (userId, historyId, cb) {
   try {
-    if (!historyId) {
-      return cb(httpError(400, 'INVALID_HISTORY_ID'));
-    }
+    pool.query(
+      `
+      SELECT
+        id,
+        prompt_version_id,
+        model_id,
+        user_id,
+        test_content,
+        model_setting,
+        output,
+        tested_at
+      FROM playground_history
+      WHERE id = ? AND user_id = ?
+    `,
+      [historyId, userId],
+      function (err, rows) {
+        if (err) return cb(err);
+        if (!rows.length) {
+          return cb(httpError(404, 'HISTORY_NOT_FOUND'));
+        }
 
-    const [rows] = await pool.promise().query(
-      `SELECT
-         id,
-         prompt_version_id,
-         model_id,
-         user_id,
-         test_content,
-         model_setting,
-         output,
-         tested_at
-       FROM playground_history
-       WHERE id = ? AND user_id = ?`,
-      [historyId, userId]
+        const row = rows[0];
+        let modelSetting = row.model_setting;
+
+        if (typeof modelSetting === 'string') {
+          try {
+            modelSetting = JSON.parse(modelSetting);
+          } catch (e) {
+            // 파싱 실패 시 그대로 둠
+          }
+        }
+
+        const item = {
+          id: row.id,
+          prompt_version_id: row.prompt_version_id,
+          model_id: row.model_id,
+          user_id: row.user_id,
+          test_content: row.test_content,
+          model_setting: modelSetting,
+          output: row.output,
+          tested_at: row.tested_at,
+          analyzer: {
+            enabled: false
+          }
+        };
+
+        return cb(null, item);
+      }
     );
-
-    if (!rows.length) {
-      return cb(httpError(404, 'HISTORY_NOT_FOUND'));
-    }
-
-    const row = rows[0];
-
-    // model_setting 은 JSON 컬럼이라 mysql2가 이미 객체로 줄 수도 있고, 문자열일 수도 있음
-    let modelSetting = row.model_setting;
-    if (typeof modelSetting === 'string') {
-      try {
-        modelSetting = JSON.parse(modelSetting);
-      } catch {
-        // 파싱 실패하면 그냥 원본 그대로 둠
-      }
-    }
-
-    cb(null, {
-      id: row.id,
-      prompt_version_id: row.prompt_version_id,
-      model_id: row.model_id,
-      user_id: row.user_id,
-      test_content: row.test_content,
-      model_setting: modelSetting,
-      output: row.output,
-      tested_at: row.tested_at,
-      // 아직 analyzer 결과를 DB에 안 넣으니까 더미
-      analyzer: {
-        enabled: false
-      }
-    });
   } catch (err) {
     cb(err);
   }
 };
+
 
 
 // 5) 히스토리 삭제
