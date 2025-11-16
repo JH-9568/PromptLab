@@ -1,45 +1,18 @@
 const pool = require('../../shared/db');
 const promptSvc = require('../prompts/prompt.service');
 
+// Promise 전용 풀 (async/await 전용)
+const promisePool = pool.promise();
+
 function httpError(status, msg) {
   const e = new Error(msg);
   e.status = status;
   return e;
 }
 
-// 아주 단순한 “가짜 분석기”
-function runAnalyzer(promptText, rules) {
-  const len = promptText ? promptText.length : 0;
-
-  const issues = [];
-  const suggestions = [];
-
-  if (len < 30) {
-    issues.push({
-      type: 'short',
-      message: '프롬프트가 너무 짧습니다. 의도와 출력 형식을 더 구체적으로 적어 보세요.',
-      range: { start: 0, end: len }
-    });
-    suggestions.push({
-      title: '요구사항 상세화',
-      example: '예: 원하는 출력 형식(목록/표/JSON)과 대상 사용자(초보자/전문가)를 명시해 보세요.'
-    });
-  }
-
-  const score = Math.max(50, Math.min(95, 60 + Math.floor(len / 20)));
-
-  return {
-    enabled: true,
-    score,
-    issues,
-    suggestions
-  };
-}
-
-
-// 아주 단순한 가짜 분석기
+// 아주 단순한 가짜 분석기 (하나만 남김)
 function runAnalyzer(text, rules) {
-  const len = text.length;
+  const len = text ? text.length : 0;
   let score = Math.max(50, Math.min(95, 60 + Math.floor(len / 20)));
 
   const issues = [];
@@ -61,10 +34,7 @@ function runAnalyzer(text, rules) {
 }
 
 
-
-// src/modules/playground/playground.service.js 상단에서 이미:
-// const pool = require('../../shared/db');  // 되어 있다고 가정
-
+// 1) 플레이그라운드 실행 (mock)
 exports.runPlayground = async function (userId, body, cb) {
   try {
     if (!body || !body.prompt_text || !body.model_id) {
@@ -91,9 +61,7 @@ exports.runPlayground = async function (userId, body, cb) {
       analyzerResult = runAnalyzer(promptText, analyzerOpt.rules);
     }
 
-    // ─────────────────────────────
     // ① source.prompt_id / prompt_version_id 처리
-    // ─────────────────────────────
     let promptVersionId = null;
 
     if (source) {
@@ -102,15 +70,13 @@ exports.runPlayground = async function (userId, body, cb) {
         promptVersionId = source.prompt_version_id;
       } else if (source.prompt_id) {
         // prompt_id만 들어온 경우 → latest_version_id를 찾아서 사용
-        const [prow] = await pool.query(
+        const [prow] = await promisePool.query(
           'SELECT latest_version_id FROM prompt WHERE id = ?',
           [source.prompt_id]
         );
         if (prow.length && prow[0].latest_version_id) {
           promptVersionId = prow[0].latest_version_id;
         } else {
-          // 프롬프트가 없거나 latest_version_id가 없으면 그냥 null로 둠
-          // (필요하면 여기서 에러를 던져도 됨)
           console.warn(
             '[runPlayground] prompt_id는 있으나 latest_version_id 없음:',
             source.prompt_id
@@ -119,9 +85,7 @@ exports.runPlayground = async function (userId, body, cb) {
       }
     }
 
-    // ─────────────────────────────
     // ② playground_history INSERT
-    // ─────────────────────────────
     let historyId = null;
     try {
       const modelSettingJson = JSON.stringify({
@@ -130,7 +94,7 @@ exports.runPlayground = async function (userId, body, cb) {
         top_p:       modelParams.top_p ?? null,
       });
 
-      const [result] = await pool.query(
+      const [result] = await promisePool.query(
         `INSERT INTO playground_history
          (prompt_version_id, model_id, user_id,
           test_content, model_setting, output, tested_at)
@@ -150,9 +114,7 @@ exports.runPlayground = async function (userId, body, cb) {
       // 기록 실패해도 실행 결과는 그대로 돌려줌
     }
 
-    // ─────────────────────────────
     // ③ 최종 응답
-    // ─────────────────────────────
     cb(null, {
       output: fakeOutput,
       usage,
@@ -172,7 +134,6 @@ exports.runPlayground = async function (userId, body, cb) {
 };
 
 
-
 // 2) 품질 점검만
 exports.grammarCheck = function(userId, body, cb) {
   if (!body || !body.prompt_text) {
@@ -182,7 +143,6 @@ exports.grammarCheck = function(userId, body, cb) {
 
   const res = runAnalyzer(body.prompt_text, rules);
 
-  // 아주 단순한 가중치로 checks 구성
   const checks = {
     clarity: 0.8,
     structure: 0.7,
@@ -198,23 +158,22 @@ exports.grammarCheck = function(userId, body, cb) {
   });
 };
 
-// 3) 히스토리 목록
+
+// 3) 히스토리 목록 (콜백 스타일 유지)
 exports.listHistory = function (userId, query, cb) {
   try {
     const page  = query.page  ? Number(query.page)  : 1;
-    const limit = query.limit ? Number(query.limit) : 20; // 기본 20
+    const limit = query.limit ? Number(query.limit) : 20;
     const offset = (page - 1) * limit;
 
     const where  = ['user_id = ?'];
     const params = [userId];
 
-    // model_id 필터
     if (query.model_id) {
       where.push('model_id = ?');
       params.push(Number(query.model_id));
     }
 
-    // prompt_version_id 필터
     if (query.prompt_version_id) {
       where.push('prompt_version_id = ?');
       params.push(Number(query.prompt_version_id));
@@ -238,14 +197,12 @@ exports.listHistory = function (userId, query, cb) {
       LIMIT ? OFFSET ?
     `;
 
-    // 1단계: 목록 조회
     pool.query(
       listSql,
       [...params, limit, offset],
       function (err, rows) {
         if (err) return cb(err);
 
-        // 2단계: total 카운트
         pool.query(
           `
           SELECT COUNT(*) AS total
@@ -258,7 +215,6 @@ exports.listHistory = function (userId, query, cb) {
 
             const total = countRows[0] ? Number(countRows[0].total) : 0;
 
-            // 3단계: 결과 매핑
             const items = rows.map((row) => {
               let modelSetting = row.model_setting;
 
@@ -266,7 +222,7 @@ exports.listHistory = function (userId, query, cb) {
                 try {
                   modelSetting = JSON.parse(modelSetting);
                 } catch (e) {
-                  // 파싱 실패 시 그대로 둠
+                  // ignore
                 }
               }
 
@@ -296,8 +252,7 @@ exports.listHistory = function (userId, query, cb) {
 };
 
 
-
-// 4) 히스토리 상세
+// 4) 히스토리 상세 (콜백 스타일 유지)
 exports.getHistory = function (userId, historyId, cb) {
   try {
     pool.query(
@@ -328,7 +283,7 @@ exports.getHistory = function (userId, historyId, cb) {
           try {
             modelSetting = JSON.parse(modelSetting);
           } catch (e) {
-            // 파싱 실패 시 그대로 둠
+            // ignore
           }
         }
 
@@ -355,15 +310,14 @@ exports.getHistory = function (userId, historyId, cb) {
 };
 
 
-
-// 5) 히스토리 삭제
+// 5) 히스토리 삭제 (async + promisePool)
 exports.deleteHistory = async function (userId, historyId, cb) {
   try {
     if (!historyId) {
       return cb(httpError(400, 'INVALID_HISTORY_ID'));
     }
 
-    const [result] = await pool.promise().query(
+    const [result] = await promisePool.query(
       'DELETE FROM playground_history WHERE id = ? AND user_id = ?',
       [historyId, userId]
     );
@@ -379,9 +333,7 @@ exports.deleteHistory = async function (userId, historyId, cb) {
 };
 
 
-// ─────────────────────────────────────────────
 // 6) 저장(프롬프트/버전화 연동)
-// ─────────────────────────────────────────────
 exports.saveFromPlayground = function (userId, body, cb) {
   console.log('[saveFromPlayground] userId =', userId, 'body =', body);
 
@@ -417,15 +369,13 @@ exports.saveFromPlayground = function (userId, body, cb) {
           const row = rows[0];
           let ms = row.model_setting;
 
-          // JSON 컬럼이 문자열로 올 수도 있으니 방어
           if (typeof ms === 'string') {
-            try { ms = JSON.parse(ms); } catch (e) { /* ignore */ }
+            try { ms = JSON.parse(ms); } catch (e) {}
           }
           if (!ms || typeof ms !== 'object') {
             ms = {};
           }
 
-          // 여기서 ai_model_id 보정
           if (!ms.ai_model_id && row.model_id) {
             ms.ai_model_id = row.model_id;
           }
@@ -457,7 +407,7 @@ exports.saveFromPlayground = function (userId, body, cb) {
     });
   }
 
-  // ── mode = new_prompt ──────────────────────────
+  // mode = new_prompt
   if (mode === 'new_prompt') {
     const p = body.prompt || {};
     const v = body.version || {};
@@ -506,7 +456,7 @@ exports.saveFromPlayground = function (userId, body, cb) {
     return;
   }
 
-  // ── mode = new_version ─────────────────────────
+  // mode = new_version
   if (mode === 'new_version') {
     const targetPromptId = body.target_prompt_id;
     const v = body.version || {};
@@ -559,7 +509,6 @@ exports.saveFromPlayground = function (userId, body, cb) {
 
 // 7) 플레이그라운드 설정 조회
 exports.getSettings = function(userId, cb) {
-  // TODO: user별 설정 테이블에서 조회
   cb(null, {
     analyzer_default_enabled: true,
     default_model_id: 3,
@@ -567,8 +516,8 @@ exports.getSettings = function(userId, cb) {
   });
 };
 
+
 // 8) 플레이그라운드 설정 수정
 exports.updateSettings = function(userId, patch, cb) {
-  // TODO: upsert into playground_settings
   cb(null, { updated: true });
 };

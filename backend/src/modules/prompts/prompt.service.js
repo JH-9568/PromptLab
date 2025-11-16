@@ -550,14 +550,14 @@ exports.deleteVersion = function(userId, promptId, verId, done){
 exports.getModelSetting = async (userId, promptId, verId) => {
   
   // 1. pool.query에 콜백 대신 await을 사용합니다.
-  const [r] = await pool.query('SELECT owner_id FROM prompt WHERE id = ?', [promptId]);
+  const [r] = await pool.promise().query('SELECT owner_id FROM prompt WHERE id = ?', [promptId]);
 
   // 2. 에러 및 권한 검사
   if (!r.length) throw httpError(404,'Prompt not found');
   if (r[0].owner_id !== userId) throw httpError(403,'Forbidden');
 
   // 3. 두 번째 쿼리 실행
-  const [rows] = await pool.query('SELECT * FROM model_setting WHERE prompt_version_id = ?', [verId]);
+  const [rows] = await pool.promise().query('SELECT * FROM model_setting WHERE prompt_version_id = ?', [verId]);
 
   // 4. 콜백(done) 대신, 값을 바로 return 합니다.
   return rows[0] || null;
