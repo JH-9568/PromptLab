@@ -17,3 +17,5 @@ pool.getConnection((err, conn) => {
     console.log(`Server running on port ${PORT}`);
   });
 });
+
+console.log('🔥 새 배포 테스트용 로그 - 2025-11-17');

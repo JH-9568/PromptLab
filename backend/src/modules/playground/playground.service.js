@@ -1,8 +1,6 @@
+// src/modules/playground/playground.service.js
 const pool = require('../../shared/db');
 const promptSvc = require('../prompts/prompt.service');
-
-// Promise 전용 풀 (async/await 전용)
-const promisePool = pool.promise();
 
 function httpError(status, msg) {
   const e = new Error(msg);
@@ -10,7 +8,7 @@ function httpError(status, msg) {
   return e;
 }
 
-// 아주 단순한 가짜 분석기 (하나만 남김)
+// 아주 단순한 가짜 분석기
 function runAnalyzer(text, rules) {
   const len = text ? text.length : 0;
   let score = Math.max(50, Math.min(95, 60 + Math.floor(len / 20)));
@@ -33,9 +31,43 @@ function runAnalyzer(text, rules) {
   return { enabled: true, score, issues, suggestions };
 }
 
+/**
+ * source 에서 prompt_version_id를 구하는 helper
+ * - source.prompt_version_id 있으면 그거 그대로
+ * - source.prompt_id만 있으면 prompt.latest_version_id 조회
+ * - 없으면 null
+ */
+function resolvePromptVersionId(source, cb) {
+  if (!source) return cb(null, null);
 
-// 1) 플레이그라운드 실행 (mock)
-exports.runPlayground = async function (userId, body, cb) {
+  if (source.prompt_version_id) {
+    return cb(null, source.prompt_version_id);
+  }
+
+  if (source.prompt_id) {
+    pool.query(
+      'SELECT latest_version_id FROM prompt WHERE id = ?',
+      [source.prompt_id],
+      function (err, rows) {
+        if (err) return cb(err);
+        if (!rows.length || !rows[0].latest_version_id) {
+          console.warn(
+            '[runPlayground] prompt_id는 있으나 latest_version_id 없음:',
+            source.prompt_id
+          );
+          return cb(null, null);
+        }
+        return cb(null, rows[0].latest_version_id);
+      }
+    );
+    return;
+  }
+
+  return cb(null, null);
+}
+
+// 1) 실행(run)
+exports.runPlayground = function (userId, body, cb) {
   try {
     if (!body || !body.prompt_text || !body.model_id) {
       return cb(httpError(400, 'prompt_text, model_id 필수'));
@@ -43,7 +75,6 @@ exports.runPlayground = async function (userId, body, cb) {
 
     const promptText  = body.prompt_text;
     const modelParams = body.model_params || {};
-    const variables   = body.variables || {};
     const source      = body.source || null;
     const analyzerOpt = body.analyzer || {};
 
@@ -61,43 +92,24 @@ exports.runPlayground = async function (userId, body, cb) {
       analyzerResult = runAnalyzer(promptText, analyzerOpt.rules);
     }
 
-    // ① source.prompt_id / prompt_version_id 처리
-    let promptVersionId = null;
-
-    if (source) {
-      if (source.prompt_version_id) {
-        // 프론트에서 버전 id를 직접 넘긴 경우
-        promptVersionId = source.prompt_version_id;
-      } else if (source.prompt_id) {
-        // prompt_id만 들어온 경우 → latest_version_id를 찾아서 사용
-        const [prow] = await promisePool.query(
-          'SELECT latest_version_id FROM prompt WHERE id = ?',
-          [source.prompt_id]
-        );
-        if (prow.length && prow[0].latest_version_id) {
-          promptVersionId = prow[0].latest_version_id;
-        } else {
-          console.warn(
-            '[runPlayground] prompt_id는 있으나 latest_version_id 없음:',
-            source.prompt_id
-          );
-        }
+    // 1단계: prompt_version_id 결정
+    resolvePromptVersionId(source, function (err, promptVersionId) {
+      if (err) {
+        console.error('[runPlayground] resolvePromptVersionId 실패:', err);
+        promptVersionId = null; // 기록 실패해도 실행 결과는 돌려줄 거라서 null 처리
       }
-    }
 
-    // ② playground_history INSERT
-    let historyId = null;
-    try {
+      // 2단계: playground_history INSERT
       const modelSettingJson = JSON.stringify({
         temperature: modelParams.temperature ?? 1.0,
         max_token:   modelParams.max_token ?? null,
         top_p:       modelParams.top_p ?? null,
       });
 
-      const [result] = await promisePool.query(
+      pool.query(
         `INSERT INTO playground_history
-         (prompt_version_id, model_id, user_id,
-          test_content, model_setting, output, tested_at)
+           (prompt_version_id, model_id, user_id,
+            test_content, model_setting, output, tested_at)
          VALUES (?, ?, ?, ?, ?, ?, NOW())`,
         [
           promptVersionId,
@@ -106,33 +118,35 @@ exports.runPlayground = async function (userId, body, cb) {
           renderedPrompt,
           modelSettingJson,
           fakeOutput,
-        ]
-      );
-      historyId = result.insertId;
-    } catch (e) {
-      console.error('playground_history INSERT 실패:', e);
-      // 기록 실패해도 실행 결과는 그대로 돌려줌
-    }
+        ],
+        function (err2, result) {
+          let historyId = null;
+          if (err2) {
+            console.error('playground_history INSERT 실패:', err2);
+          } else if (result && result.insertId) {
+            historyId = result.insertId;
+          }
 
-    // ③ 최종 응답
-    cb(null, {
-      output: fakeOutput,
-      usage,
-      model: {
-        id: body.model_id,
-        temperature: modelParams.temperature ?? 1.0,
-        max_token:   modelParams.max_token ?? null,
-        top_p:       modelParams.top_p ?? null,
-      },
-      analyzer: analyzerResult || { enabled: false },
-      history_id: historyId,
-      status: 'success',
+          return cb(null, {
+            output: fakeOutput,
+            usage,
+            model: {
+              id: body.model_id,
+              temperature: modelParams.temperature ?? 1.0,
+              max_token:   modelParams.max_token ?? null,
+              top_p:       modelParams.top_p ?? null,
+            },
+            analyzer: analyzerResult || { enabled: false },
+            history_id: historyId,
+            status: 'success',
+          });
+        }
+      );
     });
   } catch (err) {
     cb(err);
   }
 };
-
 
 // 2) 품질 점검만
 exports.grammarCheck = function(userId, body, cb) {
@@ -158,8 +172,7 @@ exports.grammarCheck = function(userId, body, cb) {
   });
 };
 
-
-// 3) 히스토리 목록 (콜백 스타일 유지)
+// 3) 히스토리 목록
 exports.listHistory = function (userId, query, cb) {
   try {
     const page  = query.page  ? Number(query.page)  : 1;
@@ -221,9 +234,7 @@ exports.listHistory = function (userId, query, cb) {
               if (typeof modelSetting === 'string') {
                 try {
                   modelSetting = JSON.parse(modelSetting);
-                } catch (e) {
-                  // ignore
-                }
+                } catch (e) {}
               }
 
               return {
@@ -251,8 +262,7 @@ exports.listHistory = function (userId, query, cb) {
   }
 };
 
-
-// 4) 히스토리 상세 (콜백 스타일 유지)
+// 4) 히스토리 상세
 exports.getHistory = function (userId, historyId, cb) {
   try {
     pool.query(
@@ -282,9 +292,7 @@ exports.getHistory = function (userId, historyId, cb) {
         if (typeof modelSetting === 'string') {
           try {
             modelSetting = JSON.parse(modelSetting);
-          } catch (e) {
-            // ignore
-          }
+          } catch (e) {}
         }
 
         const item = {
@@ -309,29 +317,28 @@ exports.getHistory = function (userId, historyId, cb) {
   }
 };
 
-
-// 5) 히스토리 삭제 (async + promisePool)
-exports.deleteHistory = async function (userId, historyId, cb) {
+// 5) 히스토리 삭제
+exports.deleteHistory = function (userId, historyId, cb) {
   try {
     if (!historyId) {
       return cb(httpError(400, 'INVALID_HISTORY_ID'));
     }
 
-    const [result] = await promisePool.query(
+    pool.query(
       'DELETE FROM playground_history WHERE id = ? AND user_id = ?',
-      [historyId, userId]
+      [historyId, userId],
+      function (err, result) {
+        if (err) return cb(err);
+        if (!result || result.affectedRows === 0) {
+          return cb(httpError(404, 'HISTORY_NOT_FOUND'));
+        }
+        cb(null, true);
+      }
     );
-
-    if (result.affectedRows === 0) {
-      return cb(httpError(404, 'HISTORY_NOT_FOUND'));
-    }
-
-    cb(null, true);
   } catch (err) {
     cb(err);
   }
 };
-
 
 // 6) 저장(프롬프트/버전화 연동)
 exports.saveFromPlayground = function (userId, body, cb) {
@@ -346,11 +353,10 @@ exports.saveFromPlayground = function (userId, body, cb) {
     return cb(httpError(400, 'mode 필수'));
   }
 
-  // 공통: content + model_setting 확보
+  // content + model_setting 확보
   function resolveContentAndModelSetting(cb2) {
     const sourceId = body.source_history_id;
 
-    // 1) history 기준으로 가져오기
     if (sourceId) {
       console.log('[saveFromPlayground] resolve from history:', sourceId);
 
@@ -389,7 +395,6 @@ exports.saveFromPlayground = function (userId, body, cb) {
       return;
     }
 
-    // 2) body.version 에서 직접 받기
     const v = body.version || {};
 
     if (!v.content || !v.model_setting) {
@@ -502,10 +507,8 @@ exports.saveFromPlayground = function (userId, body, cb) {
     return;
   }
 
-  // 알 수 없는 mode
   return cb(httpError(400, 'UNKNOWN_MODE'));
 };
-
 
 // 7) 플레이그라운드 설정 조회
 exports.getSettings = function(userId, cb) {
@@ -515,7 +518,6 @@ exports.getSettings = function(userId, cb) {
     default_params: { temperature: 0.7, max_token: 1024, top_p: 1.0 }
   });
 };
-
 
 // 8) 플레이그라운드 설정 수정
 exports.updateSettings = function(userId, patch, cb) {
