@@ -1,8 +1,9 @@
 const app = require('./app');
-const config = require('./config');
 const pool = require('./shared/db');
 
-// DB 연결 테스트 (콜백 스타일)
+const PORT = process.env.PORT || 3000;
+
+// DB 연결 확인
 pool.getConnection((err, conn) => {
   if (err) {
     console.error('MySQL Connection Error:', err.message);
@@ -12,7 +13,7 @@ pool.getConnection((err, conn) => {
   console.log('MySQL Connected...');
   if (conn) conn.release();
 
-  app.listen(config.port, () => {
-    console.log(`Server running on port ${config.port}`);
+  app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
   });
 });
