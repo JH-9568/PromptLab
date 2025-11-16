@@ -1,5 +1,5 @@
 import { ArrowLeft, Settings, Star, GitFork, Code2, LogOut } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Navigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -13,13 +13,20 @@ export function UserProfile() {
   const navigate = useNavigate();
   const logout = useAppStore((state) => state.logout);
   const setSelectedPrompt = useAppStore((state) => state.setSelectedPrompt);
+  const currentUser = useAppStore((state) => state.user);
+
+  // 사용자 정보가 없으면 로그인 페이지로 리다이렉트
+  if (!currentUser) {
+    return <Navigate to="/auth" replace />;
+  }
+
   const user = {
-    username: 'dev_master',
-    name: '김개발',
+    username: currentUser.userid,
+    name: currentUser.display_name,
     bio: '풀스택 개발자 | AI 프롬프트 엔지니어 | 오픈소스 기여자',
-    avatar: 'DM',
+    avatar: currentUser.display_name.slice(0, 2).toUpperCase(),  
     stats: {
-      prompts: 12,
+      prompts: 12,   
       stars: 3247,
       forks: 456
     }

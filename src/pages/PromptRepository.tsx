@@ -14,6 +14,12 @@ export function PromptRepository() {
   const setSelectedPrompt = useAppStore((state) => state.setSelectedPrompt);
   const navigate = useNavigate();
 
+  // Hook은 항상 컴포넌트 최상위에서 호출되어야 함
+  const [isRunning, setIsRunning] = useState(false);
+  const [output, setOutput] = useState('');
+  const [selectedVersion, setSelectedVersion] = useState<string | null>(null);
+  const [selectedModel, setSelectedModel] = useState(prompt?.model || 'GPT-4');
+
   if (!prompt) {
     return (
       <div className="min-h-screen gradient-dark-bg gradient-overlay flex items-center justify-center px-6">
@@ -27,11 +33,6 @@ export function PromptRepository() {
       </div>
     );
   }
-
-  const [isRunning, setIsRunning] = useState(false);
-  const [output, setOutput] = useState('');
-  const [selectedVersion, setSelectedVersion] = useState<string | null>(null);
-  const [selectedModel, setSelectedModel] = useState(prompt.model);
   const goHome = () => {
     setSelectedPrompt(undefined);
     navigate('/');
