@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Play, Save, Sparkles, Settings, Clock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -10,65 +10,93 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { useAppStore } from '@/store/useAppStore';
+import { getPlaygroundHistory, listPlaygroundHistory, runPlayground } from '@/lib/api/j/playground';
+import { fetchModels } from '@/lib/api/j/models';
+import type { PlaygroundHistorySummary } from '@/types/playground';
+import type { ModelSummary } from '@/types/model';
 
 export function Playground() {
   const [input, setInput] = useState('');
   const [output, setOutput] = useState('');
   const [isRunning, setIsRunning] = useState(false);
-  const [model, setModel] = useState('GPT-4');
+  const [models, setModels] = useState<ModelSummary[]>([]);
+  const [selectedModelId, setSelectedModelId] = useState<number | null>(null);
   const [temperature, setTemperature] = useState(0.7);
   const [maxTokens, setMaxTokens] = useState(2000);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [history, setHistory] = useState<Array<{input: string; output: string; timestamp: string; model: string}>>([]);
+  const [history, setHistory] = useState<PlaygroundHistorySummary[]>([]);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  const loadModels = useCallback(async () => {
+    try {
+      const response = await fetchModels({ active: true, limit: 20 });
+      setModels(response.items);
+      if (!selectedModelId && response.items.length > 0) {
+        setSelectedModelId(response.items[0].id);
+      }
+    } catch (error) {
+      console.error('모델 목록을 불러오지 못했습니다.', error);
+      setErrorMessage('모델 목록을 불러오는 중 오류가 발생했습니다.');
+    }
+  }, [selectedModelId]);
+
+  const loadHistory = useCallback(async () => {
+    try {
+      const response = await listPlaygroundHistory({ limit: 10 });
+      setHistory(response.items);
+    } catch (error) {
+      console.error('히스토리를 불러오지 못했습니다.', error);
+      setErrorMessage('히스토리를 불러오는 중 오류가 발생했습니다.');
+    }
+  }, []);
+
+  useEffect(() => {
+    loadModels();
+    loadHistory();
+  }, [loadModels, loadHistory]);
 
   const handleRun = async () => {
-    if (!input.trim()) return;
+    if (!input.trim() || !selectedModelId) return;
 
     setIsRunning(true);
     setOutput('');
+    setErrorMessage(null);
 
-    const mockOutput = `Based on your input, here's a comprehensive response:
+    try {
+      const response = await runPlayground({
+        prompt_text: input,
+        model_id: selectedModelId,
+        model_params: {
+          temperature,
+          max_token: maxTokens,
+        },
+        analyzer: {
+          enabled: true,
+        },
+      });
 
-## Analysis
-
-Your prompt is clear and well-structured. Here are some key observations:
-
-1. **Clarity**: The instructions are easy to follow
-2. **Specificity**: The requirements are well-defined
-3. **Structure**: Good organization of information
-
-## Recommendations
-
-- Consider adding more context for edge cases
-- Specify the desired output format
-- Include examples for consistency
-
-## Output
-
-The AI model will generate responses according to your specifications. This playground allows you to test different configurations and see how they affect the results.
-
-**Configuration Used:**
-- Model: ${model}
-- Temperature: ${temperature}
-- Max Tokens: ${maxTokens}
-
-Feel free to adjust the parameters and run again to see different results!`;
-
-    const words = mockOutput.split(' ');
-    for (let i = 0; i < words.length; i++) {
-      await new Promise(resolve => setTimeout(resolve, 30));
-      setOutput(prev => prev + (i === 0 ? '' : ' ') + words[i]);
+      setOutput(response.output);
+      await loadHistory();
+    } catch (error) {
+      console.error('Playground 실행 실패:', error);
+      setErrorMessage('실행 중 오류가 발생했습니다. 다시 시도해주세요.');
+    } finally {
+      setIsRunning(false);
     }
+  };
 
-    setIsRunning(false);
-
-    // Add to history
-    setHistory(prev => [{
-      input: input,
-      output: mockOutput,
-      timestamp: new Date().toLocaleTimeString(),
-      model: model
-    }, ...prev]);
+  const handleLoadHistory = async (historyId: number) => {
+    try {
+      const detail = await getPlaygroundHistory(historyId);
+      setInput(detail.test_content);
+      setOutput(detail.output);
+      if (detail.model_id) {
+        setSelectedModelId(detail.model_id);
+      }
+    } catch (error) {
+      console.error('히스토리를 불러오지 못했습니다.', error);
+      setErrorMessage('선택한 실행 기록을 불러오지 못했습니다.');
+    }
   };
 
   const navigate = useNavigate();
@@ -95,18 +123,29 @@ Feel free to adjust the parameters and run again to see different results!`;
               </div>
             </div>
             <div className="flex items-center gap-1 sm:gap-2">
-              <Select value={model} onValueChange={setModel}>
+              <Select
+                value={selectedModelId ? String(selectedModelId) : undefined}
+                onValueChange={(value) => {
+                  setSelectedModelId(Number(value));
+                }}
+              >
                 <SelectTrigger className="w-24 sm:w-32 lg:w-40 text-xs sm:text-sm">
-                  <SelectValue />
+                  <SelectValue placeholder="모델 선택" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="GPT-4">GPT-4</SelectItem>
-                  <SelectItem value="GPT-3.5">GPT-3.5 Turbo</SelectItem>
-                  <SelectItem value="Claude">Claude 3</SelectItem>
-                  <SelectItem value="Ollama">Ollama (Local)</SelectItem>
+                  {models.map((item) => (
+                    <SelectItem key={item.id} value={String(item.id)}>
+                      {item.display_name}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
-              <Button onClick={handleRun} disabled={isRunning || !input.trim()} className="glow-primary bg-primary hover:bg-primary/90" size="sm">
+              <Button
+                onClick={handleRun}
+                disabled={isRunning || !input.trim() || !selectedModelId}
+                className="glow-primary bg-primary hover:bg-primary/90"
+                size="sm"
+              >
                 <Play className="w-4 h-4 sm:mr-2" />
                 <span className="hidden sm:inline">{isRunning ? 'Running...' : 'Run'}</span>
               </Button>
@@ -193,6 +232,11 @@ Feel free to adjust the parameters and run again to see different results!`;
               </CardHeader>
               <CardContent>
                 <div className="bg-muted/50 rounded-lg p-4 min-h-[500px] max-h-[600px] overflow-y-auto">
+                  {errorMessage && (
+                    <div className="mb-4 text-sm text-red-400">
+                      {errorMessage}
+                    </div>
+                  )}
                   {output ? (
                     <div className="whitespace-pre-wrap text-sm">
                       {output}
@@ -223,23 +267,25 @@ Feel free to adjust the parameters and run again to see different results!`;
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {history.map((item, index) => (
-                  <div key={index} className="p-4 bg-muted/50 rounded-lg border border-border">
+                {history.map((item) => (
+                  <div key={item.id} className="p-4 bg-muted/50 rounded-lg border border-border">
                     <div className="flex items-center justify-between mb-2">
-                      <Badge variant="outline">{item.model}</Badge>
-                      <span className="text-xs text-muted-foreground">{item.timestamp}</span>
+                      <Badge variant="outline">Model #{item.model_id}</Badge>
+                      <span className="text-xs text-muted-foreground">
+                        {new Date(item.tested_at).toLocaleString()}
+                      </span>
                     </div>
                     <div className="grid md:grid-cols-2 gap-4">
                       <div>
                         <p className="text-xs text-muted-foreground mb-1">Input</p>
                         <div className="bg-card p-2 rounded text-sm font-mono max-h-20 overflow-hidden">
-                          {item.input.substring(0, 100)}...
+                          {item.summary.input_len} chars
                         </div>
                       </div>
                       <div>
                         <p className="text-xs text-muted-foreground mb-1">Output</p>
                         <div className="bg-card p-2 rounded text-sm max-h-20 overflow-hidden">
-                          {item.output.substring(0, 100)}...
+                          {item.summary.output_len} chars
                         </div>
                       </div>
                     </div>
@@ -247,10 +293,7 @@ Feel free to adjust the parameters and run again to see different results!`;
                       <Button 
                         variant="ghost" 
                         size="sm"
-                        onClick={() => {
-                          setInput(item.input);
-                          setOutput(item.output);
-                        }}
+                        onClick={() => handleLoadHistory(item.id)}
                       >
                         Load
                       </Button>
