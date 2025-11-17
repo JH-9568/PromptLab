@@ -137,32 +137,32 @@ exports.updateModelSetting = function(req, res, next){
 
 // ── 댓글(버전 단위) ─────────────────────
 exports.listComments = (req, res, next) => {
-  const userId = req.user.id;
+  const userId  = req.user.id;
   const promptId = Number(req.params.id);
-  const verId = Number(req.params.verId);
-  const page = Number(req.query.page || 1);
-  const limit = Number(req.query.limit || 20);
-  svc.listComments(userId, promptId, verId, { page, limit }, (err, items) => {
+  const verId    = Number(req.params.verId);
+
+  svc.listComments(userId, promptId, verId, req.query, (err, result) => {
     if (err) return next(err);
-    res.json({ items });
+    res.json(result);
   });
 };
 
-exports.createComment = (req, res, next) => {
-  const userId = req.user.id;
+exports.addComment = (req, res, next) => {
+  const userId   = req.user.id;
   const promptId = Number(req.params.id);
-  const verId = Number(req.params.verId);
-  const body = (req.body && req.body.body || '').trim();
-  if (!body) return res.status(400).json({ error: 'body 필수' });
-  svc.createComment(userId, promptId, verId, body, (err, cmt) => {
+  const verId    = Number(req.params.verId);
+  const bodyText = req.body && req.body.body;
+
+  svc.addComment(userId, promptId, verId, bodyText, (err, item) => {
     if (err) return next(err);
-    res.status(201).json(cmt);
+    res.status(201).json(item);
   });
 };
 
 exports.deleteComment = (req, res, next) => {
-  const userId = req.user.id;
+  const userId    = req.user.id;
   const commentId = Number(req.params.commentId);
+
   svc.deleteComment(userId, commentId, (err) => {
     if (err) return next(err);
     res.status(204).end();

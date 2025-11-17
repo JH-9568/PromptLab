@@ -764,3 +764,127 @@ exports.removeFavorite = function (userId, promptId, verId, done) {
     done(err);
   }
 };
+
+/**
+ * 댓글 목록 조회
+ * GET /api/v1/prompts/:id/versions/:verId/comments
+ */
+exports.listComments = function (userId, promptId, verId, q, done) {
+  try {
+    const page  = Number(q && q.page  ? q.page  : 1);
+    const limit = Number(q && q.limit ? q.limit : 20);
+    const offset = (page - 1) * limit;
+
+    if (!Number.isFinite(limit) || limit <= 0 || limit > 100) {
+      return done(httpError(400, 'INVALID_LIMIT'));
+    }
+
+    // 1) 목록
+    const listSql = `
+      SELECT
+        c.id,
+        c.prompt_version_id,
+        c.user_id,
+        u.username,
+        u.email,
+        c.body,
+        c.created_at
+      FROM comment c
+      JOIN prompt_version v ON v.id = c.prompt_version_id
+      JOIN user u ON u.id = c.user_id
+      WHERE v.prompt_id = ? AND v.id = ?
+      ORDER BY c.created_at DESC
+      LIMIT ? OFFSET ?
+    `;
+
+    const params = [promptId, verId, limit, offset];
+
+    pool.query(listSql, params, function (err, rows) {
+      if (err) return done(err);
+
+      // 2) total 카운트
+      const cntSql = `
+        SELECT COUNT(*) AS total
+        FROM comment c
+        JOIN prompt_version v ON v.id = c.prompt_version_id
+        WHERE v.prompt_id = ? AND v.id = ?
+      `;
+      pool.query(cntSql, [promptId, verId], function (err2, cntRows) {
+        if (err2) return done(err2);
+
+        const total = cntRows[0] ? Number(cntRows[0].total) : 0;
+
+        const items = rows.map((row) => ({
+          id: row.id,
+          prompt_version_id: row.prompt_version_id,
+          user_id: row.user_id,
+          author: {
+            username: row.username,
+            email: row.email,
+          },
+          body: row.body,
+          created_at: row.created_at,
+        }));
+
+        done(null, { items, page, limit, total });
+      });
+    });
+  } catch (err) {
+    done(err);
+  }
+};
+
+/**
+ * 댓글 작성
+ * POST /api/v1/prompts/:id/versions/:verId/comments
+ */
+exports.addComment = function (userId, promptId, verId, bodyText, done) {
+  try {
+    const text = (bodyText || '').trim();
+    if (!text) {
+      return done(httpError(400, 'COMMENT_BODY_REQUIRED'));
+    }
+
+    const sql = `
+      INSERT INTO comment (prompt_version_id, user_id, body, created_at)
+      VALUES (?, ?, ?, NOW())
+    `;
+
+    pool.query(sql, [verId, userId, text], function (err, result) {
+      if (err) return done(err);
+
+      done(null, {
+        id: result.insertId,
+        prompt_version_id: verId,
+        user_id: userId,
+        body: text,
+      });
+    });
+  } catch (err) {
+    done(err);
+  }
+};
+
+/**
+ * 댓글 삭제
+ * DELETE /api/v1/comments/:commentId
+ */
+exports.deleteComment = function (userId, commentId, done) {
+  try {
+    const sql = `
+      DELETE FROM comment
+      WHERE id = ? AND user_id = ?
+    `;
+    pool.query(sql, [commentId, userId], function (err, result) {
+      if (err) return done(err);
+
+      if (!result.affectedRows) {
+        return done(httpError(404, 'COMMENT_NOT_FOUND'));
+      }
+
+      done(null, true);
+    });
+  } catch (err) {
+    done(err);
+  }
+};

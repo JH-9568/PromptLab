@@ -21,7 +21,7 @@ router.patch('/:id/versions/:verId/model-setting', c.updateModelSetting);
 
 // 댓글(버전 단위)
 router.get('/:id/versions/:verId/comments', c.listComments);
-router.post('/:id/versions/:verId/comments', c.createComment);
+router.post('/:id/versions/:verId/comments', c.addComment);
 router.delete('/:id/versions/:verId/comments/:commentId', c.deleteComment);
 
 // 즐겨찾기(버전 단위)
