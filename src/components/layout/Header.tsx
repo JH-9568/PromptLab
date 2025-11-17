@@ -20,7 +20,8 @@ export function Header() {
   const location = useLocation();
   const isAuthenticated = useAppStore((state) => state.isAuthenticated);
   const logout = useAppStore((state) => state.logout);
-  const setSelectedPrompt = useAppStore((state) => state.setSelectedPrompt);
+  const setSelectedPromptId = useAppStore((state) => state.setSelectedPromptId);
+  const currentUser = useAppStore((state) => state.user);
 
   if (!isAuthenticated) return null;
 
@@ -36,7 +37,7 @@ export function Header() {
   };
 
   const goToEditor = () => {
-    setSelectedPrompt(undefined);
+    setSelectedPromptId(null);
     handleNavigation('/editor');
   };
 
@@ -126,15 +127,15 @@ export function Header() {
               <button className="flex items-center gap-2 hover:opacity-80 transition-opacity">
                 <Avatar className="w-8 h-8 border-2 border-primary/20">
                   <AvatarFallback className="bg-primary text-white text-sm">
-                    DM
+                    {(currentUser?.display_name || currentUser?.userid || 'U').slice(0, 2).toUpperCase()}
                   </AvatarFallback>
                 </Avatar>
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-48">
               <div className="px-2 py-1.5">
-                <p className="text-sm">김개발</p>
-                <p className="text-xs text-muted-foreground">@dev_master</p>
+                <p className="text-sm">{currentUser?.display_name || '사용자'}</p>
+                <p className="text-xs text-muted-foreground">@{currentUser?.userid || 'user'}</p>
               </div>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => handleNavigation('/profile')}>

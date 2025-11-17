@@ -24,8 +24,6 @@ import type {
   WorkspaceMember,
   WorkspaceSharedPrompt,
 } from '@/types/workspace';
-import type { Prompt } from '@/lib/mock-data';
-
 const roleLabelMap: Record<string, string> = {
   owner: '소유자',
   admin: '관리자',
@@ -38,33 +36,9 @@ const roleBadgeVariant = (role: string) => {
   return 'outline';
 };
 
-const toMockPrompt = (item: WorkspaceSharedPrompt): Prompt => ({
-  id: String(item.prompt.id),
-  title: item.prompt.name,
-  description: item.tags.join(', ') || '팀 프롬프트',
-  content: '',
-  author: {
-    username: item.prompt.owner.userid,
-    name: item.prompt.owner.userid,
-    avatar: `https://api.dicebear.com/7.x/initials/svg?seed=${item.prompt.owner.userid}`,
-  },
-  category: 'Dev',
-  tags: item.tags,
-  stars: item.stars ?? 0,
-  forks: item.forks ?? 0,
-  model: 'GPT-4',
-  temperature: 0.7,
-  maxTokens: 2000,
-  createdAt: item.latest_version?.created_at ?? '',
-  updatedAt: item.latest_version?.created_at ?? '',
-  versions: [],
-  comments: [],
-  executions: [],
-});
-
 export function TeamPage() {
   const navigate = useNavigate();
-  const setSelectedPrompt = useAppStore((state) => state.setSelectedPrompt);
+  const setSelectedPromptId = useAppStore((state) => state.setSelectedPromptId);
   const [workspaces, setWorkspaces] = useState<WorkspaceSummary[]>([]);
   const [selectedWorkspace, setSelectedWorkspace] = useState<WorkspaceSummary | null>(null);
   const [workspaceDetail, setWorkspaceDetail] = useState<WorkspaceDetail | null>(null);
@@ -181,12 +155,12 @@ export function TeamPage() {
   };
 
   const renderPromptCard = (prompt: WorkspaceSharedPrompt) => (
-    <Card 
+    <Card
       key={`${prompt.prompt.id}-${prompt.latest_version?.id ?? 'latest'}`}
       className="card-hover cursor-pointer border-border hover:border-primary active:scale-[0.98]"
       onClick={() => {
-        setSelectedPrompt(toMockPrompt(prompt));
-        navigate('/repository');
+        setSelectedPromptId(prompt.prompt.id);
+        navigate(`/repository?id=${prompt.prompt.id}`);
       }}
     >
       <CardHeader className="pb-3">
@@ -448,10 +422,10 @@ export function TeamPage() {
               >
                 <Users className="w-4 h-4" />
               </Button>
-              <Button 
+              <Button
                 className="glow-primary bg-primary hover:bg-primary/90"
                 onClick={() => {
-                  setSelectedPrompt(undefined);
+                  setSelectedPromptId(null);
                   navigate('/editor');
                 }}
                 size="sm"
@@ -507,10 +481,10 @@ export function TeamPage() {
               <p className="text-sm text-muted-foreground mb-4">
                 팀을 위한 첫 프롬프트를 만들어보세요
               </p>
-              <Button 
+              <Button
                 className="bg-primary hover:bg-primary/90"
                 onClick={() => {
-                  setSelectedPrompt(undefined);
+                  setSelectedPromptId(null);
                   navigate('/editor');
                 }}
               >

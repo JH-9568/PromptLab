@@ -12,7 +12,7 @@ import { useAppStore } from '@/store/useAppStore';
 export function UserProfile() {
   const navigate = useNavigate();
   const logout = useAppStore((state) => state.logout);
-  const setSelectedPrompt = useAppStore((state) => state.setSelectedPrompt);
+  const setSelectedPromptId = useAppStore((state) => state.setSelectedPromptId);
   const currentUser = useAppStore((state) => state.user);
 
   // 사용자 정보가 없으면 로그인 페이지로 리다이렉트
@@ -20,16 +20,20 @@ export function UserProfile() {
     return <Navigate to="/auth" replace />;
   }
 
+  const displayName = currentUser.display_name || currentUser.userid || '사용자';
+  const username = currentUser.userid || 'user';
+  const avatarText = displayName.slice(0, 2).toUpperCase();
+
   const user = {
-    username: currentUser.userid,
-    name: currentUser.display_name,
+    username,
+    name: displayName,
     bio: '풀스택 개발자 | AI 프롬프트 엔지니어 | 오픈소스 기여자',
-    avatar: currentUser.display_name.slice(0, 2).toUpperCase(),  
+    avatar: avatarText,
     stats: {
-      prompts: 12,   
+      prompts: 12,
       stars: 3247,
-      forks: 456
-    }
+      forks: 456,
+    },
   };
 
   const myPrompts = mockPrompts.slice(0, 3);
@@ -37,19 +41,21 @@ export function UserProfile() {
   const forkedPrompts = mockPrompts.slice(1, 4);
 
   const openPrompt = (prompt: Prompt) => {
-    setSelectedPrompt(prompt);
-    navigate('/repository');
+    setSelectedPromptId(Number(prompt.id));
+    navigate(`/repository?id=${prompt.id}`);
   };
 
   const renderPromptCard = (prompt: Prompt) => (
-    <Card 
+    <Card
       key={prompt.id}
       className="card-hover cursor-pointer border-border hover:border-primary active:scale-[0.98]"
       onClick={() => openPrompt(prompt)}
     >
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between mb-2">
-          <Badge variant="secondary" className="text-xs">{prompt.category}</Badge>
+          <Badge variant="secondary" className="text-xs">
+            {prompt.category}
+          </Badge>
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <span className="flex items-center gap-1">
               <Star className="w-3 h-3" />
@@ -95,12 +101,12 @@ export function UserProfile() {
                   {user.avatar}
                 </AvatarFallback>
               </Avatar>
-              
+
               <div className="flex-1 w-full sm:w-auto">
                 <h2 className="mb-1 text-xl sm:text-2xl">{user.name}</h2>
                 <p className="text-muted-foreground mb-2 sm:mb-3 text-sm sm:text-base">@{user.username}</p>
                 <p className="text-xs sm:text-sm mb-3 sm:mb-4">{user.bio}</p>
-                
+
                 <div className="flex items-center gap-4 sm:gap-6">
                   <div>
                     <span className="text-xl sm:text-2xl">{user.stats.prompts}</span>
@@ -126,7 +132,7 @@ export function UserProfile() {
                 </Button>
                 <Button
                   onClick={() => {
-                    setSelectedPrompt(undefined);
+                    setSelectedPromptId(null);
                     navigate('/editor');
                   }}
                   size="sm"
@@ -134,6 +140,10 @@ export function UserProfile() {
                 >
                   <Code2 className="w-4 h-4 sm:mr-2" />
                   <span className="hidden sm:inline">새 프롬프트</span>
+                </Button>
+                <Button variant="outline" onClick={logout} size="sm" className="flex-1 sm:flex-none">
+                  <LogOut className="w-4 h-4 sm:mr-2" />
+                  <span className="hidden sm:inline">로그아웃</span>
                 </Button>
               </div>
             </div>
@@ -185,7 +195,7 @@ export function UserProfile() {
                 { action: '생성', prompt: '코드 리뷰 어시스턴트', time: '2시간 전' },
                 { action: '스타', prompt: '마케팅 카피 생성기', time: '1일 전' },
                 { action: '포크', prompt: '디자인 시스템 문서화', time: '3일 전' },
-                { action: '업데이트', prompt: 'API 문서 작성기', time: '5일 전' }
+                { action: '업데이트', prompt: 'API 문서 작성기', time: '5일 전' },
               ].map((activity, i) => (
                 <div key={i} className="flex items-center gap-4 pb-4 border-b border-border last:border-0 last:pb-0">
                   <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
@@ -203,19 +213,6 @@ export function UserProfile() {
             </div>
           </CardContent>
         </Card>
-
-        {/* Logout Button */}
-        <Button 
-          variant="outline" 
-          className="w-full mt-6 text-destructive hover:bg-destructive/10 hover:text-destructive border-destructive/30"
-          onClick={() => {
-            logout();
-            navigate('/auth', { replace: true });
-          }}
-        >
-          <LogOut className="w-4 h-4 mr-2" />
-          로그아웃
-        </Button>
       </div>
     </div>
   );

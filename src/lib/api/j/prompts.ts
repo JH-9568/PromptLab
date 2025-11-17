@@ -17,6 +17,9 @@ import type {
   PromptTagsResponse,
   PromptCategoriesResponse,
   PromptModelSettingPatch,
+  PromptFavoriteResponse,
+  PromptCommentListResponse,
+  PromptComment,
 } from '@/types/prompt';
 
 export const createPrompt = async (
@@ -127,4 +130,48 @@ export const listPromptTags = async (q?: string): Promise<PromptTagsResponse> =>
 export const listPromptCategories = async (): Promise<PromptCategoriesResponse> => {
   const response = await apiClient.get<PromptCategoriesResponse>('/prompts/categories');
   return response.data;
+};
+
+export const addPromptFavorite = async (
+  promptId: number,
+  versionId: number
+): Promise<PromptFavoriteResponse> => {
+  const response = await apiClient.post<PromptFavoriteResponse>(
+    `/prompts/${promptId}/versions/${versionId}/favorite`
+  );
+  return response.data;
+};
+
+export const removePromptFavorite = async (promptId: number, versionId: number): Promise<void> => {
+  await apiClient.delete(`/prompts/${promptId}/versions/${versionId}/favorite`);
+};
+
+export const listPromptComments = async (
+  promptId: number,
+  versionId: number
+): Promise<PromptCommentListResponse> => {
+  const response = await apiClient.get<PromptCommentListResponse>(
+    `/prompts/${promptId}/versions/${versionId}/comments`
+  );
+  return response.data;
+};
+
+export const createPromptComment = async (
+  promptId: number,
+  versionId: number,
+  body: string
+): Promise<PromptComment> => {
+  const response = await apiClient.post<PromptComment>(
+    `/prompts/${promptId}/versions/${versionId}/comments`,
+    { body }
+  );
+  return response.data;
+};
+
+export const deletePromptComment = async (
+  promptId: number,
+  versionId: number,
+  commentId: number
+): Promise<void> => {
+  await apiClient.delete(`/prompts/${promptId}/versions/${versionId}/comments/${commentId}`);
 };

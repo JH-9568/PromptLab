@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 // 환경변수에서 API Base URL 가져오기
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api/v1';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://promptlab-production.up.railway.app/api/v1/';
 
 // Axios 인스턴스 생성
 export const apiClient = axios.create({
