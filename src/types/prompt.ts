@@ -29,6 +29,7 @@ export interface PromptSummary {
   visibility: PromptVisibility;
   tags: string[];
   latest_version: PromptVersionSummary | null;
+  star_count?: number;
 }
 
 export interface PromptListResponse {
@@ -41,6 +42,8 @@ export interface PromptListQuery {
   q?: string;
   page?: number;
   limit?: number;
+  sort?: string;
+  category?: string;
 }
 
 export type PromptDetail = PromptSummary;
@@ -133,4 +136,46 @@ export interface PromptCategoriesResponse {
 
 export interface PromptModelSettingUpdateResponse {
   updated: boolean;
+}
+
+export interface PromptFavoriteResponse {
+  starred: boolean;
+}
+
+export interface PromptFavoriteSummary {
+  prompt_version_id: number;
+  prompt: {
+    id: number;
+    name: string;
+  };
+  version_number: number;
+  starred_at: string;
+  owner: {
+    userid: string;
+    display_name: string;
+  };
+}
+
+export interface PromptFavoriteListResponse {
+  items: PromptFavoriteSummary[];
+  page: number;
+  limit: number;
+  total: number;
+}
+
+export interface PromptComment {
+  id: number;
+  body: string;
+  created_at?: string;
+  user_id?: number;
+  userid?: string;
+  user?: {
+    id: number;
+    userid?: string;
+    display_name?: string;
+  };
+}
+
+export interface PromptCommentListResponse {
+  items: PromptComment[];
 }

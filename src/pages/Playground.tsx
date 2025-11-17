@@ -15,6 +15,8 @@ import { fetchModels } from '@/lib/api/j/models';
 import type { PlaygroundHistorySummary } from '@/types/playground';
 import type { ModelSummary } from '@/types/model';
 
+const ALLOWED_MODEL_IDS = [1, 17];
+
 export function Playground() {
   const [input, setInput] = useState('');
   const [output, setOutput] = useState('');
@@ -30,9 +32,12 @@ export function Playground() {
   const loadModels = useCallback(async () => {
     try {
       const response = await fetchModels({ active: true, limit: 20 });
-      setModels(response.items);
-      if (!selectedModelId && response.items.length > 0) {
-        setSelectedModelId(response.items[0].id);
+      const allowed = response.items.filter((item) => ALLOWED_MODEL_IDS.includes(item.id));
+      setModels(allowed);
+      if (allowed.length === 0) {
+        setSelectedModelId(null);
+      } else if (!selectedModelId || !allowed.some((item) => item.id === selectedModelId)) {
+        setSelectedModelId(allowed[0].id);
       }
     } catch (error) {
       console.error('모델 목록을 불러오지 못했습니다.', error);
@@ -100,10 +105,13 @@ export function Playground() {
   };
 
   const navigate = useNavigate();
-  const setSelectedPrompt = useAppStore((state) => state.setSelectedPrompt);
+  const setSelectedPromptId = useAppStore((state) => state.setSelectedPromptId);
+  const setDraftPromptContent = useAppStore((state) => state.setDraftPromptContent);
 
   const handleSaveAsPrompt = () => {
-    setSelectedPrompt(undefined);
+    if (!input.trim()) return;
+    setDraftPromptContent(input);
+    setSelectedPromptId(null);
     navigate('/editor');
   };
 
@@ -279,13 +287,13 @@ export function Playground() {
                       <div>
                         <p className="text-xs text-muted-foreground mb-1">Input</p>
                         <div className="bg-card p-2 rounded text-sm font-mono max-h-20 overflow-hidden">
-                          {item.summary.input_len} chars
+                          {typeof item.summary?.input_len === 'number' ? `${item.summary.input_len} chars` : 'N/A'}
                         </div>
                       </div>
                       <div>
                         <p className="text-xs text-muted-foreground mb-1">Output</p>
                         <div className="bg-card p-2 rounded text-sm max-h-20 overflow-hidden">
-                          {item.summary.output_len} chars
+                          {typeof item.summary?.output_len === 'number' ? `${item.summary.output_len} chars` : 'N/A'}
                         </div>
                       </div>
                     </div>
