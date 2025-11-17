@@ -901,7 +901,7 @@ exports.listCategories = (callback) => {
     // **중요:** 이전 'NaN' 에러를 막기 위해, 이 함수는 WHERE 절을 사용하지 않고
     // 모든 카테고리를 조회합니다. 사용자별 필터링이 필요하다면 여기에 로직을 추가해야 합니다.
     
-    db.query(sql, [], (err, results) => {
+    pool.query(sql, [], (err, results) => {
         if (err) {
             console.error('Error fetching categories:', err);
             return callback(err);
@@ -925,7 +925,7 @@ exports.listTags = (q, callback) => {
     }
 
     // 데이터베이스 쿼리 실행
-    db.query(sql, params, (err, results) => {
+    pool.query(sql, params, (err, results) => {
         if (err) {
             console.error('Error fetching tags:', err);
             return callback(err);
