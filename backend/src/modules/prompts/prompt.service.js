@@ -688,3 +688,88 @@ exports.updateModelSetting = function(userId, promptId, verId, patch, done){
     });
   }, done);
 };
+
+/**
+ * 즐겨찾기 추가
+ * userId: 사용자 id
+ * promptId: 프롬프트 id (URL 의 :id)
+ * verId: 프롬프트 버전 id (URL 의 :verId = prompt_version.id)
+ */
+exports.addFavorite = function (userId, promptId, verId, done) {
+  try {
+    if (!userId) return done(httpError(401, 'UNAUTHORIZED'));
+    if (!promptId || !verId) return done(httpError(400, 'INVALID_ID'));
+
+    // 1) 이 버전이 해당 프롬프트에 실제로 속하는지 검증
+    pool.query(
+      `
+      SELECT id 
+      FROM prompt_version
+      WHERE id = ? AND prompt_id = ?
+      `,
+      [verId, promptId],
+      function (err, rows) {
+        if (err) return done(err);
+        if (!rows.length) {
+          return done(httpError(404, 'VERSION_NOT_FOUND'));
+        }
+
+        // 2) 즐겨찾기 INSERT (중복 방지를 위해 INSERT IGNORE 사용)
+        pool.query(
+          `
+          INSERT IGNORE INTO prompt_favorite
+            (user_id, prompt_version_id, created_at)
+          VALUES (?, ?, NOW())
+          `,
+          [userId, verId],
+          function (err2, result) {
+            if (err2) return done(err2);
+
+            // 새로 추가됐으면 affectedRows > 0, 이미 있던 즐겨찾기면 0
+            const ok = result.affectedRows > 0;
+            return done(null, ok);
+          }
+        );
+      }
+    );
+  } catch (err) {
+    done(err);
+  }
+};
+
+/**
+ * 즐겨찾기 제거
+ */
+exports.removeFavorite = function (userId, promptId, verId, done) {
+  try {
+    if (!userId) return done(httpError(401, 'UNAUTHORIZED'));
+    if (!promptId || !verId) return done(httpError(400, 'INVALID_ID'));
+
+    // 프롬프트/버전 매칭 검증 후 삭제해도 되지만,
+    // 이미 addFavorite에서 검증한 버전만 쓰인다고 가정하면 바로 삭제해도 무방
+    pool.query(
+      `
+      DELETE FROM prompt_favorite
+      USING prompt_favorite pf
+      JOIN prompt_version v ON v.id = pf.prompt_version_id
+      WHERE pf.user_id = ?
+        AND pf.prompt_version_id = ?
+        AND v.prompt_id = ?
+      `,
+      [userId, verId, promptId],
+      function (err, result) {
+        if (err) return done(err);
+
+        if (result.affectedRows === 0) {
+          // 안 지워졌다고 해서 에러 줄 필요는 없으니 404 정도 줄 수도 있고, 그냥 성공 처리해도 됨
+          return done(null);
+        }
+
+        return done(null);
+      }
+    );
+  } catch (err) {
+    done(err);
+  }
+};
+
