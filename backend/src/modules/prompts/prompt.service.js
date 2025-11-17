@@ -771,7 +771,7 @@ exports.removeFavorite = function (userId, promptId, verId, done) {
  */
 exports.listComments = function (userId, promptId, verId, q, done) {
   try {
-    const page  = Number(q && q.page  ? q.page  : 1);
+    const page 	= Number(q && q.page 	? q.page 	: 1);
     const limit = Number(q && q.limit ? q.limit : 20);
     const offset = (page - 1) * limit;
 
@@ -817,9 +817,9 @@ exports.listComments = function (userId, promptId, verId, q, done) {
         const items = rows.map((row) => ({
           id: row.id,
           prompt_version_id: row.prompt_version_id,
-          user_id: row.user_id,
+          author_id: row.author_id, // 🚨 수정: user_id 대신 author_id 사용 (DB 스키마에 맞춤)
           author: {
-            username: row.username,
+            username: row.user_name, // 🚨 수정: row.username 대신 row.user_name 사용 (SQL SELECT에 맞춤)
             email: row.email,
           },
           body: row.body,
@@ -846,7 +846,7 @@ exports.addComment = function (userId, promptId, verId, bodyText, done) {
     }
 
     const sql = `
-      INSERT INTO comment (prompt_version_id, user_id, body, created_at)
+      INSERT INTO comment (prompt_version_id, author_id, body, created_at) // 🚨 수정: user_id 대신 author_id 사용
       VALUES (?, ?, ?, NOW())
     `;
 
@@ -856,7 +856,7 @@ exports.addComment = function (userId, promptId, verId, bodyText, done) {
       done(null, {
         id: result.insertId,
         prompt_version_id: verId,
-        user_id: userId,
+        author_id: userId, // 🚨 수정: user_id 대신 author_id 사용
         body: text,
       });
     });
@@ -873,7 +873,7 @@ exports.deleteComment = function (userId, commentId, done) {
   try {
     const sql = `
       DELETE FROM comment
-      WHERE id = ? AND user_id = ?
+      WHERE id = ? AND author_id = ? // 🚨 수정: user_id 대신 author_id 사용
     `;
     pool.query(sql, [commentId, userId], function (err, result) {
       if (err) return done(err);
