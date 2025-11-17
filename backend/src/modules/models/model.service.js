@@ -165,14 +165,15 @@ exports.getModel = function (userId, id, cb) {
 };
 
 // 3) 모델 단발 테스트 (ADMIN 전용)
+// 3) 모델 단발 테스트 (ADMIN 전용)
 exports.testModel = function (userId, body, cb) {
   if (!body || !body.prompt_text || !body.model_id) {
     return cb(httpError(400, 'prompt_text, model_id 필수'));
   }
 
-  const modelId = Number(body.model_id);
+  const modelId   = Number(body.model_id);
   const promptTxt = body.prompt_text;
-  const params = body.params || {};
+  const params    = body.params || {};
 
   // 1단계: 모델 정보 조회
   pool.query(
@@ -194,28 +195,34 @@ exports.testModel = function (userId, body, cb) {
         return cb(httpError(400, 'UNSUPPORTED_PROVIDER'));
       }
 
+      // 실제로 사용할 파라미터(기본값 포함)
+      const appliedParams = {
+        temperature: params.temperature ?? 0.7,
+        max_token:   params.max_token   ?? 1024,
+        top_p:       params.top_p       ?? 1.0,
+      };
+
+      // 디버깅용 로그
+      console.log('[model.testModel] provider =', m.provider,
+                  'model_code =', m.model_code,
+                  'appliedParams =', appliedParams);
+
       // 2단계: 실제 LLM 호출
       providerImpl
         .callModel({
-          model: m,
-          prompt: promptTxt,
-          params,
+          modelCode:  m.model_code,   // ★ DB의 model_code 사용
+          promptText: promptTxt,      // ★ 프롬프트 텍스트
+          params:     appliedParams,
         })
         .then(function (result) {
-          const applied = {
-            temperature: params.temperature ?? 0.7,
-            max_token: params.max_token ?? 1024,
-            top_p: params.top_p ?? 1.0,
-            frequency_penalty: params.frequency_penalty ?? 0.0,
-            presence_penalty: params.presence_penalty ?? 0.0,
-          };
-
           cb(null, {
             output: result.output,
-            usage: result.usage,
+            usage:  result.usage,
             model: {
-              id: modelId,
-              applied_params: applied,
+              id:           modelId,
+              provider:     m.provider,
+              model_code:   m.model_code,
+              applied_params: appliedParams,
             },
           });
         })
