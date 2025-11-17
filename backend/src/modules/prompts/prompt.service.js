@@ -845,8 +845,9 @@ exports.addComment = function (userId, promptId, verId, bodyText, done) {
       return done(httpError(400, 'COMMENT_BODY_REQUIRED'));
     }
 
+    // SQL 쿼리 내부의 주석(//)을 제거하여 MySQL 구문 오류를 해결합니다.
     const sql = `
-      INSERT INTO comment (prompt_version_id, author_id, body, created_at) // 🚨 수정: user_id 대신 author_id 사용
+      INSERT INTO comment (prompt_version_id, author_id, body, created_at)
       VALUES (?, ?, ?, NOW())
     `;
 
@@ -856,7 +857,7 @@ exports.addComment = function (userId, promptId, verId, bodyText, done) {
       done(null, {
         id: result.insertId,
         prompt_version_id: verId,
-        author_id: userId, // 🚨 수정: user_id 대신 author_id 사용
+        author_id: userId,
         body: text,
       });
     });
@@ -873,7 +874,7 @@ exports.deleteComment = function (userId, commentId, done) {
   try {
     const sql = `
       DELETE FROM comment
-      WHERE id = ? AND author_id = ? // 🚨 수정: user_id 대신 author_id 사용
+      WHERE id = ? AND author_id = ?
     `;
     pool.query(sql, [commentId, userId], function (err, result) {
       if (err) return done(err);
