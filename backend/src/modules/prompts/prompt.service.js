@@ -219,7 +219,7 @@ exports.listPrompts = function (userId, q, done) {
         -- ⭐ 인기(별점) 수: 이 프롬프트의 모든 버전에 달린 즐겨찾기 총합
         (
           SELECT COUNT(*)
-          FROM prompt_favorite f
+          FROM favorite f
           JOIN prompt_version v ON v.id = f.prompt_version_id
           WHERE v.prompt_id = p.id
         ) AS star_count
