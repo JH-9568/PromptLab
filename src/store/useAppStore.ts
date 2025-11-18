@@ -1,6 +1,4 @@
 import { create } from 'zustand';
-import type { Prompt } from '@/lib/mock-data';
-import type { PromptCategory } from '@/types/navigation';
 import type { User } from '@/types/auth';
 import type {
   UserProfile,
@@ -27,9 +25,11 @@ interface AppState {
   userActivity: UserActivityResponse | null;
 
   // 기존 상태
-  selectedPrompt?: Prompt;
-  selectedCategory: PromptCategory;
+  selectedPromptId: number | null;
+  selectedCategoryCode: string | null;
   searchQuery: string;
+  draftPromptContent: string;
+  favoriteVersions: Record<number, boolean>;
 
   // 인증 액션
   login: (email: string, password: string) => Promise<void>;
@@ -49,9 +49,11 @@ interface AppState {
   fetchUserActivity: (userid: string, page?: number) => Promise<void>;
 
   // 기존 액션
-  setSelectedPrompt: (prompt?: Prompt) => void;
-  setSelectedCategory: (category: PromptCategory) => void;
+  setSelectedPromptId: (promptId: number | null) => void;
+  setSelectedCategoryCode: (categoryCode: string | null) => void;
   setSearchQuery: (query: string) => void;
+  setDraftPromptContent: (content: string) => void;
+  setFavoriteStatus: (versionId: number, starred: boolean) => void;
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -71,6 +73,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   selectedPrompt: undefined,
   selectedCategory: 'Dev',
   searchQuery: '',
+  draftPromptContent: '',
+  favoriteVersions: {},
 
   // 로그인
   login: async (email: string, password: string) => {
@@ -138,7 +142,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         user: null,
         accessToken: null,
         refreshToken: null,
-        selectedPrompt: undefined,
+        selectedPromptId: null,
       });
     }
   },
@@ -298,7 +302,19 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   // 기존 액션
-  setSelectedPrompt: (selectedPrompt) => set({ selectedPrompt }),
-  setSelectedCategory: (selectedCategory) => set({ selectedCategory }),
+  setSelectedPromptId: (selectedPromptId) => set({ selectedPromptId }),
+  setSelectedCategoryCode: (selectedCategoryCode) => set({ selectedCategoryCode }),
   setSearchQuery: (searchQuery) => set({ searchQuery }),
+  setDraftPromptContent: (draftPromptContent) => set({ draftPromptContent }),
+  setFavoriteStatus: (versionId, starred) =>
+    set((state) => {
+      const updated = { ...state.favoriteVersions };
+      if (starred) {
+        updated[versionId] = true;
+      } else {
+        delete updated[versionId];
+      }
+      localStorage.setItem('favorite_version_ids', JSON.stringify(Object.keys(updated)));
+      return { favoriteVersions: updated };
+    }),
 }));

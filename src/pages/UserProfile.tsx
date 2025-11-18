@@ -36,7 +36,7 @@ export function UserProfile() {
   const [currentPassword, setCurrentPassword] = useState('');
 
   const logout = useAppStore((state) => state.logout);
-  const setSelectedPrompt = useAppStore((state) => state.setSelectedPrompt);
+  const setSelectedPromptId = useAppStore((state) => state.setSelectedPromptId);
   const currentUser = useAppStore((state) => state.user);
 
   // 프로필 관련 상태
@@ -260,7 +260,7 @@ export function UserProfile() {
                 </Button>
                 <Button
                   onClick={() => {
-                    setSelectedPrompt(undefined);
+                    setSelectedPromptId(null);
                     navigate('/editor');
                   }}
                   size="sm"
@@ -268,6 +268,10 @@ export function UserProfile() {
                 >
                   <Code2 className="w-4 h-4 sm:mr-2" />
                   <span className="hidden sm:inline">새 프롬프트</span>
+                </Button>
+                <Button variant="outline" onClick={logout} size="sm" className="flex-1 sm:flex-none">
+                  <LogOut className="w-4 h-4 sm:mr-2" />
+                  <span className="hidden sm:inline">로그아웃</span>
                 </Button>
               </div>
             </div>

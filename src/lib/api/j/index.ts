@@ -3,3 +3,4 @@ export * from './workspaces';
 export * from './playground';
 export * from './models';
 export * from './prompts';
+export * from './users';

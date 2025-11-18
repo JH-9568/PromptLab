@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Users, Plus, Link as LinkIcon, Copy, Star, GitFork, Trash2, Crown, Check, Loader2 } from 'lucide-react';
+import { ArrowLeft, Users, Plus, Copy, Star, GitFork, Trash2, Crown, Check, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useAppStore } from '@/store/useAppStore';
 import {
   createWorkspace,
@@ -17,19 +18,25 @@ import {
   getWorkspaceMembers,
   getWorkspaceSharedPrompts,
   sendWorkspaceInvite,
+  updateWorkspaceMemberRole,
+  removeWorkspaceMember,
+  getWorkspaceInvites,
+  cancelWorkspaceInvite,
 } from '@/lib/api/j/workspaces';
 import type {
   WorkspaceSummary,
   WorkspaceDetail,
   WorkspaceMember,
   WorkspaceSharedPrompt,
+  WorkspaceInvite,
+  WorkspaceRole,
 } from '@/types/workspace';
-import type { Prompt } from '@/lib/mock-data';
-
 const roleLabelMap: Record<string, string> = {
   owner: '소유자',
   admin: '관리자',
   member: '멤버',
+  editor: '에디터',
+  viewer: '뷰어',
 };
 
 const roleBadgeVariant = (role: string) => {
@@ -38,33 +45,11 @@ const roleBadgeVariant = (role: string) => {
   return 'outline';
 };
 
-const toMockPrompt = (item: WorkspaceSharedPrompt): Prompt => ({
-  id: String(item.prompt.id),
-  title: item.prompt.name,
-  description: item.tags.join(', ') || '팀 프롬프트',
-  content: '',
-  author: {
-    username: item.prompt.owner.userid,
-    name: item.prompt.owner.userid,
-    avatar: `https://api.dicebear.com/7.x/initials/svg?seed=${item.prompt.owner.userid}`,
-  },
-  category: 'Dev',
-  tags: item.tags,
-  stars: item.stars ?? 0,
-  forks: item.forks ?? 0,
-  model: 'GPT-4',
-  temperature: 0.7,
-  maxTokens: 2000,
-  createdAt: item.latest_version?.created_at ?? '',
-  updatedAt: item.latest_version?.created_at ?? '',
-  versions: [],
-  comments: [],
-  executions: [],
-});
+const roleOptions: WorkspaceRole[] = ['viewer', 'editor', 'admin'];
 
 export function TeamPage() {
   const navigate = useNavigate();
-  const setSelectedPrompt = useAppStore((state) => state.setSelectedPrompt);
+  const setSelectedPromptId = useAppStore((state) => state.setSelectedPromptId);
   const [workspaces, setWorkspaces] = useState<WorkspaceSummary[]>([]);
   const [selectedWorkspace, setSelectedWorkspace] = useState<WorkspaceSummary | null>(null);
   const [workspaceDetail, setWorkspaceDetail] = useState<WorkspaceDetail | null>(null);
@@ -75,15 +60,19 @@ export function TeamPage() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isManageModalOpen, setIsManageModalOpen] = useState(false);
   const [isCreateTeamModalOpen, setIsCreateTeamModalOpen] = useState(false);
-  const [inviteCode, setInviteCode] = useState('TEAM-XK9P-2M4L');
-  const [copied, setCopied] = useState(false);
+  const [workspaceInvites, setWorkspaceInvites] = useState<WorkspaceInvite[]>([]);
+  const [invitesLoading, setInvitesLoading] = useState(false);
+  const [copiedToken, setCopiedToken] = useState<string | null>(null);
   const [newTeamData, setNewTeamData] = useState({
     name: '',
     description: ''
   });
   const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteRole, setInviteRole] = useState<WorkspaceRole>('viewer');
   const [inviteStatus, setInviteStatus] = useState<string | null>(null);
   const [isCreatingWorkspace, setIsCreatingWorkspace] = useState(false);
+  const [memberActionUserId, setMemberActionUserId] = useState<number | null>(null);
+  const [isSendingInvite, setIsSendingInvite] = useState(false);
 
   const loadWorkspaces = useCallback(async () => {
     setIsListLoading(true);
@@ -96,6 +85,19 @@ export function TeamPage() {
       setErrorMessage('워크스페이스 목록을 불러오는 중 오류가 발생했습니다.');
     } finally {
       setIsListLoading(false);
+    }
+  }, []);
+
+  const loadWorkspaceInvites = useCallback(async (workspaceId: number) => {
+    setInvitesLoading(true);
+    try {
+      const response = await getWorkspaceInvites(workspaceId);
+      setWorkspaceInvites(response.items);
+    } catch (error) {
+      console.error('초대 목록을 불러오지 못했습니다.', error);
+      setErrorMessage('초대 목록을 불러오는 중 오류가 발생했습니다.');
+    } finally {
+      setInvitesLoading(false);
     }
   }, []);
 
@@ -112,13 +114,14 @@ export function TeamPage() {
       setWorkspaceDetail(detail);
       setWorkspaceMembers(membersResponse.items);
       setWorkspacePrompts(promptsResponse.items);
+      await loadWorkspaceInvites(workspaceId);
     } catch (error) {
       console.error('워크스페이스 상세를 불러오지 못했습니다.', error);
       setErrorMessage('워크스페이스 상세 정보를 불러오는 중 오류가 발생했습니다.');
     } finally {
       setIsDetailLoading(false);
     }
-  }, []);
+  }, [loadWorkspaceInvites]);
 
   useEffect(() => {
     loadWorkspaces();
@@ -153,40 +156,80 @@ export function TeamPage() {
   const handleSendInvite = async () => {
     if (!selectedWorkspace || !inviteEmail.trim()) return;
     setInviteStatus(null);
+    setIsSendingInvite(true);
     try {
       await sendWorkspaceInvite(selectedWorkspace.id, {
         email: inviteEmail.trim(),
-        role: 'member',
+        role: inviteRole,
       });
       setInviteEmail('');
       setInviteStatus('초대 이메일을 보냈습니다.');
+      await loadWorkspaceInvites(selectedWorkspace.id);
     } catch (error) {
       console.error('초대 메일을 보내지 못했습니다.', error);
       setInviteStatus('초대 이메일 전송에 실패했습니다.');
+    } finally {
+      setIsSendingInvite(false);
+    }
+  };
+  
+  const handleMemberRoleChange = async (userId: number, newRole: WorkspaceRole) => {
+    if (!selectedWorkspace) return;
+    setMemberActionUserId(userId);
+    try {
+      await updateWorkspaceMemberRole(selectedWorkspace.id, userId, newRole);
+      setWorkspaceMembers((prev) =>
+        prev.map((member) =>
+          member.user.id === userId ? { ...member, role: newRole } : member
+        )
+      );
+    } catch (error) {
+      console.error('멤버 역할 변경 실패', error);
+      setErrorMessage('멤버 역할을 변경하지 못했습니다.');
+    } finally {
+      setMemberActionUserId(null);
     }
   };
 
-  const handleCopyInviteCode = () => {
-    navigator.clipboard.writeText(`https://promptlab.com/invite/${inviteCode}`);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+  const handleRemoveMember = async (userId: number) => {
+    if (!selectedWorkspace) return;
+    setMemberActionUserId(userId);
+    try {
+      await removeWorkspaceMember(selectedWorkspace.id, userId);
+      setWorkspaceMembers((prev) => prev.filter((member) => member.user.id !== userId));
+    } catch (error) {
+      console.error('멤버 제거 실패', error);
+      setErrorMessage('멤버를 제거하지 못했습니다.');
+    } finally {
+      setMemberActionUserId(null);
+    }
   };
 
-  const handleGenerateNewCode = () => {
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-    const parts = Array(3).fill(0).map(() => 
-      Array(4).fill(0).map(() => chars[Math.floor(Math.random() * chars.length)]).join('')
-    );
-    setInviteCode(`TEAM-${parts.join('-')}`);
+  const handleCopyInviteLink = (token: string) => {
+    const inviteUrl = `${window.location.origin}/workspace/invite?token=${token}`;
+    navigator.clipboard.writeText(inviteUrl);
+    setCopiedToken(token);
+    setTimeout(() => setCopiedToken(null), 2000);
+  };
+
+  const handleCancelInviteRequest = async (token: string) => {
+    if (!selectedWorkspace) return;
+    try {
+      await cancelWorkspaceInvite(token);
+      await loadWorkspaceInvites(selectedWorkspace.id);
+    } catch (error) {
+      console.error('초대 취소 실패', error);
+      setErrorMessage('초대를 취소하지 못했습니다.');
+    }
   };
 
   const renderPromptCard = (prompt: WorkspaceSharedPrompt) => (
-    <Card 
+    <Card
       key={`${prompt.prompt.id}-${prompt.latest_version?.id ?? 'latest'}`}
       className="card-hover cursor-pointer border-border hover:border-primary active:scale-[0.98]"
       onClick={() => {
-        setSelectedPrompt(toMockPrompt(prompt));
-        navigate('/repository');
+        setSelectedPromptId(prompt.prompt.id);
+        navigate(`/repository?id=${prompt.prompt.id}`);
       }}
     >
       <CardHeader className="pb-3">
@@ -448,10 +491,10 @@ export function TeamPage() {
               >
                 <Users className="w-4 h-4" />
               </Button>
-              <Button 
+              <Button
                 className="glow-primary bg-primary hover:bg-primary/90"
                 onClick={() => {
-                  setSelectedPrompt(undefined);
+                  setSelectedPromptId(null);
                   navigate('/editor');
                 }}
                 size="sm"
@@ -507,10 +550,10 @@ export function TeamPage() {
               <p className="text-sm text-muted-foreground mb-4">
                 팀을 위한 첫 프롬프트를 만들어보세요
               </p>
-              <Button 
+              <Button
                 className="bg-primary hover:bg-primary/90"
                 onClick={() => {
-                  setSelectedPrompt(undefined);
+                  setSelectedPromptId(null);
                   navigate('/editor');
                 }}
               >
@@ -539,7 +582,7 @@ export function TeamPage() {
                 현재 멤버
               </TabsTrigger>
               <TabsTrigger value="invite">
-                <LinkIcon className="w-4 h-4 mr-2" />
+                <Plus className="w-4 h-4 mr-2" />
                 멤버 초대
               </TabsTrigger>
             </TabsList>
@@ -548,33 +591,68 @@ export function TeamPage() {
             <TabsContent value="members" className="space-y-4 mt-4">
               <div className="space-y-3">
                 {workspaceMembers.map((member) => (
-                  <div key={member.user.id} className="flex items-center justify-between p-3 rounded-lg border border-border hover:bg-muted/50 transition-colors">
-                <div className="flex items-center gap-3">
-                  <Avatar className="w-10 h-10 border-2 border-primary/20">
-                    <AvatarFallback className="bg-primary/10 text-primary">
-                      {member.user.display_name?.slice(0, 2).toUpperCase()}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium">{member.user.display_name || member.user.userid}</span>
-                      {member.role === 'owner' && (
-                        <Crown className="w-4 h-4 text-yellow-500" />
-                      )}
-                      <Badge variant={roleBadgeVariant(member.role)} className="text-xs">
-                        {roleLabelMap[member.role] ?? member.role}
-                      </Badge>
+                  <div
+                    key={member.user.id}
+                    className="flex items-center justify-between p-3 rounded-lg border border-border hover:bg-muted/50 transition-colors flex-wrap gap-3"
+                  >
+                    <div className="flex items-center gap-3">
+                      <Avatar className="w-10 h-10 border-2 border-primary/20">
+                        <AvatarFallback className="bg-primary/10 text-primary">
+                          {member.user.display_name?.slice(0, 2).toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-medium">
+                            {member.user.display_name || member.user.userid}
+                          </span>
+                          {member.role === 'owner' && (
+                            <Crown className="w-4 h-4 text-yellow-500" />
+                          )}
+                          <Badge variant={roleBadgeVariant(member.role)} className="text-xs">
+                            {roleLabelMap[member.role] ?? member.role}
+                          </Badge>
+                        </div>
+                        <p className="text-xs text-muted-foreground">@{member.user.userid}</p>
+                      </div>
                     </div>
-                    <p className="text-xs text-muted-foreground">@{member.user.userid}</p>
+                    <div className="flex items-center gap-2">
+                      <Select
+                        value={member.role}
+                        disabled={member.role === 'owner' || memberActionUserId === member.user.id}
+                        onValueChange={(value) =>
+                          handleMemberRoleChange(member.user.id, value as WorkspaceRole)
+                        }
+                      >
+                        <SelectTrigger className="w-28 text-xs">
+                          <SelectValue placeholder="역할" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {roleOptions.map((role) => (
+                            <SelectItem key={role} value={role}>
+                              {roleLabelMap[role] ?? role}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {member.role !== 'owner' && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-destructive hover:text-destructive"
+                          onClick={() => handleRemoveMember(member.user.id)}
+                          disabled={memberActionUserId === member.user.id}
+                        >
+                          {memberActionUserId === member.user.id ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <Trash2 className="w-4 h-4" />
+                          )}
+                        </Button>
+                      )}
+                    </div>
                   </div>
-                </div>
-                {member.role !== 'owner' && (
-                  <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive">
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
-                )}
-              </div>
-            ))}
+                ))}
               </div>
             </TabsContent>
 
@@ -582,60 +660,103 @@ export function TeamPage() {
             <TabsContent value="invite" className="space-y-4 mt-4">
               <Card className="border-border">
                 <CardHeader>
-                  <CardTitle className="text-base">초대 링크</CardTitle>
-                  <CardDescription>
-                    팀에 초대하고 싶은 사람들과 이 링크를 공유하세요
-                  </CardDescription>
+                  <CardTitle className="text-base">초대 현황</CardTitle>
+                  <CardDescription>발송한 초대 링크를 관리하세요</CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="space-y-2">
-                    <Label>초대 코드</Label>
-                    <div className="flex gap-2">
-                      <Input 
-                        value={`https://promptlab.com/invite/${inviteCode}`} 
-                        readOnly 
-                        className="font-mono text-sm"
-                      />
-                      <Button 
-                        variant="outline" 
-                        size="icon"
-                        onClick={handleCopyInviteCode}
-                      >
-                        {copied ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
-                      </Button>
+                <CardContent className="space-y-3">
+                  {invitesLoading ? (
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      초대를 불러오는 중입니다...
                     </div>
-                  </div>
-                  <Button 
-                    variant="outline" 
-                    className="w-full"
-                    onClick={handleGenerateNewCode}
-                  >
-                    <LinkIcon className="w-4 h-4 mr-2" />
-                    새 코드 생성
-                  </Button>
+                  ) : workspaceInvites.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">현재 대기 중인 초대가 없습니다.</p>
+                  ) : (
+                    workspaceInvites.map((invite) => (
+                      <div
+                        key={invite.token}
+                        className="border border-border rounded-lg p-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"
+                      >
+                        <div className="space-y-1">
+                          <p className="text-sm font-medium">{invite.invited_email}</p>
+                          <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                            <Badge variant="outline" className="capitalize">
+                              {roleLabelMap[invite.role] ?? invite.role}
+                            </Badge>
+                            <span className="uppercase">{invite.status}</span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleCopyInviteLink(invite.token)}
+                          >
+                            {copiedToken === invite.token ? (
+                              <Check className="w-4 h-4 text-green-500" />
+                            ) : (
+                              <Copy className="w-4 h-4" />
+                            )}
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-destructive"
+                            onClick={() => handleCancelInviteRequest(invite.token)}
+                          >
+                            취소
+                          </Button>
+                        </div>
+                      </div>
+                    ))
+                  )}
                 </CardContent>
               </Card>
 
               <Card className="border-border">
                 <CardHeader>
                   <CardTitle className="text-base">이메일로 초대</CardTitle>
-                  <CardDescription>
-                    이메일 주소로 직접 초대장을 보내세요
-                  </CardDescription>
+                  <CardDescription>이메일 주소와 역할을 지정해 초대를 보냅니다</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="space-y-2">
                     <Label htmlFor="invite-email">이메일 주소</Label>
-                    <Input 
+                    <Input
                       id="invite-email"
-                      type="email" 
+                      type="email"
                       placeholder="colleague@example.com"
                       value={inviteEmail}
                       onChange={(e) => setInviteEmail(e.target.value)}
                     />
                   </div>
-                  <Button className="w-full bg-primary hover:bg-primary/90" onClick={handleSendInvite} disabled={!inviteEmail.trim()}>
-                    초대장 보내기
+                  <div className="space-y-2">
+                    <Label htmlFor="invite-role">역할</Label>
+                    <Select
+                      value={inviteRole}
+                      onValueChange={(value) => setInviteRole(value as WorkspaceRole)}
+                    >
+                      <SelectTrigger id="invite-role">
+                        <SelectValue placeholder="역할 선택" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {roleOptions.map((role) => (
+                          <SelectItem key={role} value={role}>
+                            {roleLabelMap[role] ?? role}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <Button
+                    className="w-full bg-primary hover:bg-primary/90"
+                    onClick={handleSendInvite}
+                    disabled={!inviteEmail.trim() || isSendingInvite}
+                  >
+                    {isSendingInvite ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      '초대장 보내기'
+                    )}
                   </Button>
                   {inviteStatus && (
                     <p className="text-xs text-muted-foreground">{inviteStatus}</p>

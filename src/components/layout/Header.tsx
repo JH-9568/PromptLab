@@ -22,7 +22,8 @@ export function Header() {
   const isAuthenticated = useAppStore((state) => state.isAuthenticated);
   const user = useAppStore((state) => state.user);
   const logout = useAppStore((state) => state.logout);
-  const setSelectedPrompt = useAppStore((state) => state.setSelectedPrompt);
+  const setSelectedPromptId = useAppStore((state) => state.setSelectedPromptId);
+  const currentUser = useAppStore((state) => state.user);
 
   if (!isAuthenticated) return null;
 
@@ -38,7 +39,7 @@ export function Header() {
   };
 
   const goToEditor = () => {
-    setSelectedPrompt(undefined);
+    setSelectedPromptId(null);
     handleNavigation('/editor');
   };
 
