@@ -1,6 +1,7 @@
 // src/modules/playground/playground.service.js
 const pool = require('../../shared/db');
 const promptSvc = require('../prompts/prompt.service');
+const modelSvc = require('../models/model.service');
 
 function httpError(status, msg) {
   const e = new Error(msg);
@@ -78,75 +79,116 @@ exports.runPlayground = function (userId, body, cb) {
     const source      = body.source || null;
     const analyzerOpt = body.analyzer || {};
 
-    const renderedPrompt = promptText;
-    const fakeOutput =
-      `[MOCK_OUTPUT]\n\n${renderedPrompt}\n\n(여기에 실제 모델 응답이 들어갈 예정입니다.)`;
-
-    const usage = {
-      input_tokens: renderedPrompt.length,
-      output_tokens: fakeOutput.length,
+    // ─────────────────────────────
+    // ① 실제 모델 호출 (model.service 재사용)
+    // ─────────────────────────────
+    const modelBody = {
+      model_id: body.model_id,
+      prompt_text: promptText,
+      // model.service 쪽에서는 params 를 기대하므로 변환
+      params: modelParams,
     };
 
-    let analyzerResult = null;
-    if (analyzerOpt.enabled) {
-      analyzerResult = runAnalyzer(promptText, analyzerOpt.rules);
-    }
+    modelSvc.testModel(userId, modelBody, function (err, modelResult) {
+      if (err) return cb(err);
 
-    // 1단계: prompt_version_id 결정
-    resolvePromptVersionId(source, function (err, promptVersionId) {
-      if (err) {
-        console.error('[runPlayground] resolvePromptVersionId 실패:', err);
-        promptVersionId = null; // 기록 실패해도 실행 결과는 돌려줄 거라서 null 처리
+      const outputText = modelResult.output || '';
+      const usage = modelResult.usage || {
+        input_tokens: promptText.length,
+        output_tokens: outputText.length,
+      };
+
+      let analyzerResult = null;
+      if (analyzerOpt.enabled) {
+        analyzerResult = runAnalyzer(promptText, analyzerOpt.rules);
       }
 
-      // 2단계: playground_history INSERT
-      const modelSettingJson = JSON.stringify({
-        temperature: modelParams.temperature ?? 1.0,
-        max_token:   modelParams.max_token ?? null,
-        top_p:       modelParams.top_p ?? null,
-      });
+      // ─────────────────────────────
+      // ② prompt_version_id 계산
+      // ─────────────────────────────
+      let promptVersionId = null;
 
-      pool.query(
-        `INSERT INTO playground_history
-           (prompt_version_id, model_id, user_id,
-            test_content, model_setting, output, tested_at)
-         VALUES (?, ?, ?, ?, ?, ?, NOW())`,
-        [
-          promptVersionId,
-          body.model_id,
-          userId,
-          renderedPrompt,
-          modelSettingJson,
-          fakeOutput,
-        ],
-        function (err2, result) {
-          let historyId = null;
-          if (err2) {
-            console.error('playground_history INSERT 실패:', err2);
-          } else if (result && result.insertId) {
-            historyId = result.insertId;
+      function afterResolvePromptVersionId() {
+        // playground_history 에 저장할 model_setting JSON
+        const modelSettingJson = JSON.stringify({
+          temperature: modelParams.temperature ?? null,
+          max_token:   modelParams.max_token ?? null,
+          top_p:       modelParams.top_p ?? null,
+        });
+
+        // ─────────────────────────────
+        // ③ playground_history INSERT
+        // ─────────────────────────────
+        pool.query(
+          `INSERT INTO playground_history
+             (prompt_version_id, model_id, user_id,
+              test_content, model_setting, output, tested_at)
+           VALUES (?, ?, ?, ?, ?, ?, NOW())`,
+          [
+            promptVersionId,
+            body.model_id,
+            userId,
+            promptText,
+            modelSettingJson,
+            outputText,
+          ],
+          function (err2, result) {
+            if (err2) {
+              console.error('playground_history INSERT 실패:', err2);
+            }
+
+            const historyId =
+              !err2 && result && result.insertId ? result.insertId : null;
+
+            return cb(null, {
+              output: outputText,
+              usage,
+              model: modelResult.model || {
+                id: body.model_id,
+                temperature: modelParams.temperature ?? null,
+                max_token:   modelParams.max_token ?? null,
+                top_p:       modelParams.top_p ?? null,
+              },
+              analyzer: analyzerResult || { enabled: false },
+              history_id: historyId,
+              status: 'success',
+            });
           }
+        );
+      }
 
-          return cb(null, {
-            output: fakeOutput,
-            usage,
-            model: {
-              id: body.model_id,
-              temperature: modelParams.temperature ?? 1.0,
-              max_token:   modelParams.max_token ?? null,
-              top_p:       modelParams.top_p ?? null,
-            },
-            analyzer: analyzerResult || { enabled: false },
-            history_id: historyId,
-            status: 'success',
-          });
-        }
-      );
+      // source 에 따라 prompt_version_id 결정
+      if (source && source.prompt_version_id) {
+        // 1) 버전 id 가 바로 온 경우
+        promptVersionId = source.prompt_version_id;
+        return afterResolvePromptVersionId();
+      } else if (source && source.prompt_id) {
+        // 2) prompt_id 만 온 경우 → latest_version_id 조회
+        pool.query(
+          'SELECT latest_version_id FROM prompt WHERE id = ?',
+          [source.prompt_id],
+          function (err2, rows) {
+            if (err2) {
+              console.error('[runPlayground] prompt 조회 실패:', err2);
+              // 기록 실패해도 실행 결과는 주고 싶으니 그냥 진행
+              return afterResolvePromptVersionId();
+            }
+            if (rows.length && rows[0].latest_version_id) {
+              promptVersionId = rows[0].latest_version_id;
+            }
+            return afterResolvePromptVersionId();
+          }
+        );
+      } else {
+        // source 정보가 없으면 그냥 null 로 기록
+        return afterResolvePromptVersionId();
+      }
     });
   } catch (err) {
     cb(err);
   }
 };
+
 
 // 2) 품질 점검만
 exports.grammarCheck = function(userId, body, cb) {
@@ -523,3 +565,4 @@ exports.getSettings = function(userId, cb) {
 exports.updateSettings = function(userId, patch, cb) {
   cb(null, { updated: true });
 };
+
