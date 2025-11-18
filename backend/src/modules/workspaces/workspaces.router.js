@@ -9,10 +9,10 @@ const validate = require('./workspaces.validate');
 
 // ⚠️ 프로젝트에 맞게 경로/이름만 맞추면 됨
 // 예: modules/auth/auth.middleware.js 에서 authenticate export 된다고 가정
-const { authenticate } = require('../auth/auth.middleware');
+const { protect } = require('../../middlewares/protect');
 
 // 모든 워크스페이스 API는 인증 필요
-router.use(authenticate);
+router.use(protect);
 
 // --- 1. Workspace (기본 CRUD) ---
 
