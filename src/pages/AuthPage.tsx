@@ -72,8 +72,8 @@ export function AuthPage() {
   };
 
   const handleSocialAuth = (provider: string) => {
-    // OAuth는 나중에 구현
-    console.log('Social auth:', provider);
+    const apiBaseUrl = import.meta.env.VITE_API_BASE_URL;
+    window.location.href = `${apiBaseUrl}/auth/oauth/${provider}/start`;
   };
 
   return (

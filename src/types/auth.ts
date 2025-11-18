@@ -70,3 +70,38 @@ export type AuthErrorCode =
   | 'INVALID_REFRESH_TOKEN'
   | 'EXPIRED_REFRESH_TOKEN'
   | 'UNAUTHORIZED';
+
+// 비밀번호 변경 요청
+export interface ChangePasswordRequest {
+  current_password: string;  
+  new_password: string;      
+}
+
+// 비밀번호 재설정 요청
+export interface PasswordResetRequest {
+  email: string;
+}
+
+// 비밀번호 재설정 확인
+export interface PasswordResetConfirmRequest {
+  token: string;
+  new_password: string;
+}
+
+// 세션 체크 응답
+export interface SessionResponse {
+  is_valid: boolean;
+  user: User;
+}
+
+// OAuth 연결 요청
+export interface OAuthLinkRequest {
+  code: string;
+  redirect_uri: string;
+}
+
+// OAuth 연결 응답
+export interface OAuthLinkResponse {
+  linked: boolean;
+  provider: string;
+}
