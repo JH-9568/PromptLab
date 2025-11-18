@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 // 환경변수에서 API Base URL 가져오기
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://promptlab-production.up.railway.app/api/v1/';
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 // Axios 인스턴스 생성
 export const apiClient = axios.create({
@@ -9,7 +9,7 @@ export const apiClient = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
-  withCredentials: true, // 쿠키 전송 허용 (refresh_token용)
+  withCredentials: true, 
 });
 
 // 요청 인터셉터: 모든 요청에 토큰 자동 추가

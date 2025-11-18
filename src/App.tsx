@@ -7,6 +7,7 @@ import { PromptEditor } from '@/components/shared/PromptEditor';
 import { Playground } from '@/pages/Playground';
 import { UserProfile } from '@/pages/UserProfile';
 import { AuthPage } from '@/pages/AuthPage';
+import { OAuthCallback } from '@/pages/OAuthCallback';
 import { Header } from '@/components/layout/Header';
 import { Settings } from '@/pages/Settings';
 import { CategoryPage } from '@/pages/CategoryPage';
@@ -43,6 +44,7 @@ export default function App() {
           path="/auth"
           element={isAuthenticated ? <Navigate to="/" replace /> : <AuthPage />}
         />
+        <Route path="/auth/callback" element={<OAuthCallback />} />
         <Route
           path="/"
           element={
