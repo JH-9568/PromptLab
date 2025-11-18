@@ -173,17 +173,23 @@ exports.listPrompts = function (userId, q, done) {
     const where  = [];
     const params = [];
 
+    const isOwnerMe = q && q.owner === 'me';
+
     // 1) owner 필터: owner=me
-    if (q && q.owner === 'me') {
+    if (isOwnerMe) {
       if (!userId) return done(httpError(401, 'UNAUTHORIZED'));
       where.push('p.owner_id = ?');
       params.push(userId);
-    }
 
-    // 2) visibility 필터
-    if (q && q.visibility) {
-      where.push('p.visibility = ?');
-      params.push(q.visibility);
+      // 내 프롬프트 목록에서는 visibility 필터를 선택적으로 걸 수 있음
+      if (q && q.visibility) {
+        where.push('p.visibility = ?');
+        params.push(q.visibility);
+      }
+    } else {
+      // ★ 글로벌 검색(owner 파라미터 없거나 'me'가 아닌 경우)은
+      // 항상 public 만 조회
+      where.push("p.visibility = 'public'");
     }
 
     // 3) 검색어(q): 이름/설명 LIKE
@@ -206,17 +212,17 @@ exports.listPrompts = function (userId, q, done) {
 
     // 5) 카테고리 필터: category=dev
     if (q && q.category) {
-  where.push(`
-    EXISTS (
-      SELECT 1
-      FROM prompt_version v2
-      JOIN category c ON c.id = v2.category_id
-      WHERE v2.prompt_id = p.id
-        AND c.code = ?
-    )
-  `);
-  params.push(q.category);
-}
+      where.push(`
+        EXISTS (
+          SELECT 1
+          FROM prompt_version v2
+          JOIN category c ON c.id = v2.category_id
+          WHERE v2.prompt_id = p.id
+            AND c.code = ?
+        )
+      `);
+      params.push(q.category);
+    }
 
     const whereSql = where.length ? ('WHERE ' + where.join(' AND ')) : '';
 
@@ -338,6 +344,7 @@ exports.listPrompts = function (userId, q, done) {
     done(err);
   }
 };
+
 
 
 
