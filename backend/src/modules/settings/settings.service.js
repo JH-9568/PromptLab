@@ -253,7 +253,7 @@ exports.requestEmailChange = function (userId, body, cb) {
         `UPDATE user
          SET pending_email = ?,
              email_verification_token = ?,
-             email_verification_expired_at = DATE_ADD(NOW(), INTERVAL ? MINUTE)
+             email_verification_expires = DATE_ADD(NOW(), INTERVAL ? MINUTE)
          WHERE id = ?`,
         [newEmail, token, expiresMinutes, userId],
         function (err2, result) {
@@ -276,7 +276,7 @@ exports.confirmEmailChange = function (body, cb) {
   if (!token) return cb(httpError(400, 'INVALID_TOKEN'));
 
   pool.query(
-    `SELECT id, pending_email, email_verification_expired_at
+    `SELECT id, pending_email, email_verification_expires
      FROM user
      WHERE email_verification_token = ?`,
     [token],
@@ -286,7 +286,7 @@ exports.confirmEmailChange = function (body, cb) {
 
       const u = rows[0];
       const now = new Date();
-      const exp = u.email_verification_expired_at;
+      const exp = u.email_verification_expires;
 
       if (!u.pending_email) {
         return cb(httpError(400, 'INVALID_TOKEN'));
@@ -310,7 +310,7 @@ exports.confirmEmailChange = function (body, cb) {
              SET email = ?,
                  pending_email = NULL,
                  email_verification_token = NULL,
-                 email_verification_expired_at = NULL,
+                 email_verification_expires = NULL,
                  updated_at = NOW()
              WHERE id = ?`,
             [newEmail, u.id],
