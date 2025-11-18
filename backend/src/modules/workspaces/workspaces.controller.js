@@ -14,7 +14,7 @@ exports.createWorkspace = async (req, res, next) => {
         const data = await workspaceService.createWorkspace(req.body, req.user.id);
         res.status(201).json({
             ...data,
-            created_at: new Date().toISOString() // DB에서 받지만, 스펙을 위해 예시 날짜 사용
+            created_at: new Date().toISOString(),
         });
     } catch (error) {
         next(error);
@@ -52,7 +52,6 @@ exports.getWorkspaceDetail = async (req, res, next) => {
 // PATCH /workspaces/:id (수정)
 exports.updateWorkspace = async (req, res, next) => {
     try {
-        // isAdminOrOwner 미들웨어에서 권한 체크 완료
         const updated = await workspaceService.updateWorkspace(req.params.id, req.body);
         res.status(200).json(updated);
     } catch (error) {

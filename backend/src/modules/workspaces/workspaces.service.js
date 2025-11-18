@@ -21,6 +21,22 @@ const beginTransaction = async () => {
 /**
  * 워크스페이스를 생성하고, 생성자를 멤버로 추가합니다. (스펙 1)
  */
+/**
+ * 워크스페이스를 생성하고, 생성자를 멤버로 추가합니다. (스펙 1)
+ */
+
+/**
+ * 워크스페이스 단일 조회 (권한 미들웨어용)
+ */
+exports.getWorkspaceById = async (workspaceId) => {
+    const [rows] = await pool.execute(
+        'SELECT id, kind, name, description, slug, created_by FROM workspaces WHERE id = ?',
+        [workspaceId]
+    );
+    return rows[0] || null;
+};
+
+
 exports.createWorkspace = async (data, userId) => {
     const conn = await beginTransaction();
     try {
@@ -33,10 +49,10 @@ exports.createWorkspace = async (data, userId) => {
             throw new ConflictError('SLUG_TAKEN', 'Workspace slug is already taken.');
         }
 
-        // 3. 워크스페이스 생성
+        // 3. 워크스페이스 생성 (description 추가)
         const [result] = await conn.execute(
-            'INSERT INTO workspaces (kind, name, slug, created_by) VALUES (?, ?, ?, ?)',
-            [data.kind, data.name, slug, userId]
+            'INSERT INTO workspaces (kind, name, description, slug, created_by) VALUES (?, ?, ?, ?, ?)',
+            [data.kind, data.name, data.description || null, slug, userId]
         );
         const workspaceId = result.insertId;
 
@@ -52,6 +68,7 @@ exports.createWorkspace = async (data, userId) => {
             id: workspaceId,
             kind: data.kind,
             name: data.name,
+            description: data.description || null,
             slug: slug,
             created_by: userId,
         };
@@ -62,6 +79,7 @@ exports.createWorkspace = async (data, userId) => {
         conn.release();
     }
 };
+
 
 /**
  * 사용자가 속한 워크스페이스 목록을 조회합니다. (스펙 2)
@@ -81,10 +99,9 @@ exports.getMyWorkspaces = async (userId, pagination) => {
   const limit = Number(pagination.limit) || 20;
   const offset = (page - 1) * limit;
 
-  // ⚠️ LIMIT / OFFSET 은 문자열로 직접 넣어줌
   const query = `
     SELECT 
-      w.id, w.kind, w.name, w.slug, wm.role
+      w.id, w.kind, w.name, w.description, w.slug, wm.role
     FROM 
       workspace_members wm
     JOIN 
@@ -96,7 +113,6 @@ exports.getMyWorkspaces = async (userId, pagination) => {
     LIMIT ${limit} OFFSET ${offset}
   `;
 
-  // ? 는 userId, q 두 개만 남김
   const [items] = await pool.execute(query, [userId, q]);
 
   const countSql = `
@@ -116,12 +132,16 @@ exports.getMyWorkspaces = async (userId, pagination) => {
   };
 };
 
+
+/**
+ * 워크스페이스 상세 정보를 조회합니다. (스펙 3)
+ */
 /**
  * 워크스페이스 상세 정보를 조회합니다. (스펙 3)
  */
 exports.getWorkspaceDetail = async (workspaceId) => {
     const [workspaces] = await pool.execute(
-        'SELECT id, kind, name, slug, created_by, created_at FROM workspaces WHERE id = ?',
+        'SELECT id, kind, name, description, slug, created_by, created_at FROM workspaces WHERE id = ?',
         [workspaceId]
     );
     const workspace = workspaces[0];
@@ -129,16 +149,22 @@ exports.getWorkspaceDetail = async (workspaceId) => {
 
     // 생성자 정보 로드
     const [creatorRows] = await pool.execute(
-    'SELECT id, userid FROM user WHERE id = ?',
-    [workspace.created_by]
+      'SELECT id, userid FROM user WHERE id = ?',
+      [workspace.created_by]
     );
     const createdByUser = creatorRows[0] || null;
 
     // 멤버 수
-    const [[{ memberCount }]] = await pool.query('SELECT COUNT(*) AS memberCount FROM workspace_members WHERE workspace_id = ?', [workspaceId]);
+    const [[{ memberCount }]] = await pool.query(
+      'SELECT COUNT(*) AS memberCount FROM workspace_members WHERE workspace_id = ?',
+      [workspaceId]
+    );
 
     // 공유 프롬프트 수
-    const [[{ promptCount }]] = await pool.query('SELECT COUNT(*) AS promptCount FROM workspace_prompts WHERE workspace_id = ?', [workspaceId]);
+    const [[{ promptCount }]] = await pool.query(
+      'SELECT COUNT(*) AS promptCount FROM workspace_prompts WHERE workspace_id = ?',
+      [workspaceId]
+    );
 
     return {
         ...workspace,
@@ -148,6 +174,9 @@ exports.getWorkspaceDetail = async (workspaceId) => {
     };
 };
 
+/**
+ * 워크스페이스 정보를 수정합니다. (스펙 4)
+ */
 /**
  * 워크스페이스 정보를 수정합니다. (스펙 4)
  */
@@ -162,9 +191,16 @@ exports.updateWorkspace = async (workspaceId, data) => {
             values.push(data.name);
         }
 
+        if (typeof data.description !== 'undefined') {
+            updates.push('description = ?');
+            values.push(data.description);
+        }
+
         if (data.slug) {
-            // Slug 중복 체크
-            const [existing] = await conn.query('SELECT id FROM workspaces WHERE slug = ? AND id != ?', [data.slug, workspaceId]);
+            const [existing] = await conn.query(
+              'SELECT id FROM workspaces WHERE slug = ? AND id != ?',
+              [data.slug, workspaceId]
+            );
             if (existing.length > 0) {
                 throw new ConflictError('SLUG_TAKEN', 'Workspace slug is already taken.');
             }
@@ -179,7 +215,10 @@ exports.updateWorkspace = async (workspaceId, data) => {
         const query = `UPDATE workspaces SET ${updates.join(', ')} WHERE id = ?`;
         await conn.execute(query, [...values, workspaceId]);
 
-        const [updated] = await conn.execute('SELECT id, name, slug FROM workspaces WHERE id = ?', [workspaceId]);
+        const [updated] = await conn.execute(
+          'SELECT id, kind, name, description, slug FROM workspaces WHERE id = ?',
+          [workspaceId]
+        );
 
         await conn.commit();
         return updated[0];

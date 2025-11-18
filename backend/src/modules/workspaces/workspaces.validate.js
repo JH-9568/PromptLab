@@ -25,14 +25,20 @@ const handleValidationErrors = (req, res, next) => {
 // POST /workspaces (생성)
 exports.validateCreateWorkspace = [
     body('kind')
-        .isIn(['team']) // 스펙: "team"만 생성 가능
+        .isIn(['team'])
         .withMessage('Only "team" kind workspaces can be created via this endpoint.'),
     body('name')
         .isString()
         .trim()
         .isLength({ min: 1, max: 120 })
         .withMessage('Name must be between 1 and 120 characters.'),
-    slugValidation('slug'), // 선택 사항
+    body('description')
+        .optional()
+        .isString()
+        .trim()
+        .isLength({ max: 1000 })
+        .withMessage('Description must be 1000 characters or fewer.'),
+    slugValidation('slug'),
     handleValidationErrors,
 ];
 
@@ -44,6 +50,12 @@ exports.validateUpdateWorkspace = [
         .trim()
         .isLength({ min: 1, max: 120 })
         .withMessage('Name must be between 1 and 120 characters.'),
+    body('description')
+        .optional()
+        .isString()
+        .trim()
+        .isLength({ max: 1000 })
+        .withMessage('Description must be 1000 characters or fewer.'),
     slugValidation('slug'),
     handleValidationErrors,
 ];
