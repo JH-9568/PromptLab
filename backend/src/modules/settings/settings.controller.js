@@ -73,12 +73,13 @@ exports.confirmEmailChange = (req, res, next) => {
 
 // DELETE /api/v1/settings/account
 exports.deleteAccount = (req, res, next) => {
-  const userId = req.user.id;
-  const body = req.body || {};
+  const userId = req.user && req.user.id;
 
-  svc.deleteAccount(userId, body, (err, result) => {
+  svc.deleteAccount(userId, (err, ok) => {
     if (err) return next(err);
-    res.status(202).json(result); // { scheduled: true }
+
+    // 실제 삭제 완료 → 204로 응답
+    return res.status(204).end();
   });
 };
 

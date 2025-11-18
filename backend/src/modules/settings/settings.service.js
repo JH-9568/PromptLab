@@ -327,31 +327,28 @@ exports.confirmEmailChange = function (body, cb) {
 
 
 
-// ─────────────────────────────────────────────
-// 계정 삭제 (간단 버전: deleted_at 만 세팅)
-// ─────────────────────────────────────────────
-
-exports.deleteAccount = function(userId, body, cb) {
-  try {
-    // 간단버전이므로 reauth_token 검증은 생략
-    // (실서비스라면 비밀번호 재확인 or OAuth reauth 필요)
-
-    pool.query(
-      'UPDATE user SET deleted_at = NOW() WHERE id = ? AND deleted_at IS NULL',
-      [userId],
-      function(err, result) {
-        if (err) return cb(err);
-
-        if (!result.affectedRows) {
-          // 이미 삭제됐거나 없는 계정
-          return cb(httpError(404, 'USER_NOT_FOUND'));
-        }
-
-        // 실제 삭제는 비동기 스케줄러가 한다고 가정
-        cb(null, { scheduled: true });
-      }
-    );
-  } catch (err) {
-    cb(err);
+exports.deleteAccount = function (userId, cb) {
+  if (!userId) {
+    return cb(httpError(401, 'UNAUTHORIZED'));
   }
+
+  // (옵션) 트랜잭션으로 묶고 싶으면 beginTransaction 사용해서
+  // 연관 테이블들 먼저 삭제 → 마지막에 user 삭제 하는 구조로 바꿔도 됨.
+  // 여기서는 FK ON DELETE CASCADE가 달려 있다는 가정으로
+  // user만 지우는 간단 버전으로 작성.
+
+  pool.query(
+    'DELETE FROM user WHERE id = ?',
+    [userId],
+    function (err, result) {
+      if (err) return cb(err);
+
+      if (result.affectedRows === 0) {
+        return cb(httpError(404, 'USER_NOT_FOUND'));
+      }
+
+      // 성공
+      cb(null, true);
+    }
+  );
 };
