@@ -8,11 +8,20 @@ const client = new OpenAI({
 });
 
 // args: { modelCode, promptText, params }
-async function callModel({ modelCode, promptText, params }) {
-  // 기본 파라미터 세팅
-  const temperature = params.temperature ?? 0.7;
-  const maxTokens   = params.max_token ?? 1024;
-  const topP        = params.top_p ?? 1.0;
+async function callModel({ modelCode, promptText, params = {} }) {
+  // 문자열로 들어온 값들도 숫자로 강제 변환 + 기본값 설정
+  const rawTemp = params.temperature ?? 0.7;
+  const rawMax  = params.max_token ?? 1024;
+  const rawTopP = params.top_p ?? 1.0;
+
+  let temperature = parseFloat(rawTemp);
+  if (Number.isNaN(temperature)) temperature = 0.7;
+
+  let maxTokens = parseInt(rawMax, 10);
+  if (Number.isNaN(maxTokens)) maxTokens = 1024;
+
+  let topP = parseFloat(rawTopP);
+  if (Number.isNaN(topP)) topP = 1.0;
 
   // chat.completions 기준으로 작성
   const resp = await client.chat.completions.create({
