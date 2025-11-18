@@ -33,10 +33,10 @@ app.use(express.json());
 app.use(cookieParser());   
 
 // 임시 로그인
-app.use(function(req, res, next){
-  req.user = { id: 3, is_admin: true };
-  next();
-});
+//app.use(function(req, res, next){
+//  req.user = { id: 3, is_admin: true };
+//  next();
+//});
 
 app.get('/health', function(req,res){ res.json({ ok:true }); });
 app.use('/api/v1/playground', playgroundRouter);
