@@ -17,18 +17,10 @@ router.use(protect);
 // --- 1. Workspace (기본 CRUD) ---
 
 // POST /api/v1/workspaces
-router.post(
-  '/',
-  validate.validateCreateWorkspace,
-  controller.createWorkspace
-);
+router.post('/', validate.validateCreateWorkspace, controller.createWorkspace);
 
 // GET /api/v1/workspaces
-router.get(
-  '/',
-  validate.validatePagination,
-  controller.getWorkspaces
-);
+router.get('/', validate.validatePagination, controller.getWorkspaces);
 
 // GET /api/v1/workspaces/:id
 router.get(
@@ -111,18 +103,10 @@ router.get(
 );
 
 // PATCH /api/v1/workspaces/invites/:token/accept
-router.patch(
-  '/invites/:token/accept',
-  validate.validateInviteToken,
-  controller.acceptInvite
-);
+router.patch('/invites/:token/accept', validate.validateInviteToken, controller.acceptInvite);
 
 // PATCH /api/v1/workspaces/invites/:token/reject
-router.patch(
-  '/invites/:token/reject',
-  validate.validateInviteToken,
-  controller.rejectInvite
-);
+router.patch('/invites/:token/reject', validate.validateInviteToken, controller.rejectInvite);
 
 // DELETE /api/v1/workspaces/invites/:token
 router.delete(
@@ -164,10 +148,11 @@ router.get(
 router.post(
   '/:id/prompts',
   workspaceAuth.loadWorkspace,
-  workspaceAuth.isMember,                // 팀 멤버면 누구나 생성 가능
+  workspaceAuth.isMember, // 팀 멤버면 누구나 생성 가능
   validate.validateWorkspacePromptCreate,
   controller.createPromptInWorkspace
 );
+
 // PATCH /api/v1/workspaces/:id/prompts/:promptId
 router.patch(
   '/:id/prompts/:promptId',
