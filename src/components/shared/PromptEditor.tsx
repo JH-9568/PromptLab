@@ -15,6 +15,7 @@ import {
   createPromptVersion,
   getPrompt,
   getPromptVersion,
+  listPromptCategories,
 } from '@/lib/api/j/prompts';
 import { fetchModels } from '@/lib/api/j/models';
 import type { ModelSummary } from '@/types/model';
@@ -40,6 +41,7 @@ export function PromptEditor() {
   const [tags, setTags] = useState('');
   const [categoryCode, setCategoryCode] = useState<string>('');
   const [modelId, setModelId] = useState<number | null>(null);
+  const [categories, setCategories] = useState(DEFAULT_PROMPT_CATEGORIES);
   const [temperature, setTemperature] = useState(0.7);
   const [maxTokens, setMaxTokens] = useState(2000);
   const [commitMessage, setCommitMessage] = useState('');
@@ -75,6 +77,42 @@ export function PromptEditor() {
     };
     loadMeta();
   }, [modelId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadCategories = async () => {
+      try {
+        const response = await listPromptCategories();
+        if (cancelled) return;
+        if (response.items?.length) {
+          const normalized = response.items.map((item) => ({
+            code: item.code,
+            name_kr: item.name_kr || '',
+            name_en: item.name_en || item.code,
+          }));
+          setCategories(normalized);
+          return;
+        }
+        setCategories(DEFAULT_PROMPT_CATEGORIES);
+      } catch (error) {
+        if (!cancelled) {
+          console.error('카테고리 로딩 실패', error);
+          setCategories(DEFAULT_PROMPT_CATEGORIES);
+        }
+      }
+    };
+    loadCategories();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!categoryCode) return;
+    if (!categories.some((category) => category.code === categoryCode)) {
+      setCategoryCode('');
+    }
+  }, [categories, categoryCode]);
 
   useEffect(() => {
     if (!isNewVersion || !targetPromptId) return;
@@ -144,12 +182,17 @@ export function PromptEditor() {
     setErrorMessage(null);
     setSuccessMessage(null);
 
+    const normalizedCategoryCode =
+      categoryCode && categories.some((category) => category.code === categoryCode)
+        ? categoryCode
+        : undefined;
+
     try {
       if (isNewVersion && targetPromptId) {
         const response = await createPromptVersion(targetPromptId, {
           content,
           commit_message: commitMessage || 'New version',
-          category_code: categoryCode || undefined,
+          category_code: normalizedCategoryCode,
           is_draft: false,
           model_setting: {
             ai_model_id: modelId,
@@ -168,7 +211,7 @@ export function PromptEditor() {
           tags: tagList,
           content,
           commit_message: commitMessage || 'Initial version',
-          category_code: categoryCode || undefined,
+          category_code: normalizedCategoryCode,
           is_draft: false,
           model_setting: {
             ai_model_id: modelId,
@@ -274,7 +317,7 @@ export function PromptEditor() {
                         <SelectValue placeholder="카테고리 선택" />
                       </SelectTrigger>
                       <SelectContent>
-                        {DEFAULT_PROMPT_CATEGORIES.map((category) => (
+                        {categories.map((category) => (
                           <SelectItem key={category.code} value={category.code}>
                             {category.name_kr || category.name_en || category.code}
                           </SelectItem>
