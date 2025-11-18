@@ -4,24 +4,98 @@ import type {
   UserProfile,
   UserPromptsResponse,
   UserFavoritesResponse,
-  UserForksResponse,
   UserActivityResponse,
 } from '@/types/user';
 import * as authApi from '@/lib/api/k/auth';
 import * as userApi from '@/lib/api/k/user';
+
+type ProfileLike = Partial<UserProfile> & Record<string, any>;
+
+const normalizeProfile = (profile: ProfileLike): UserProfile => {
+  const statsSource = profile.stats || {};
+  const visibilitySource =
+    profile.visibility || {
+      is_profile_public:
+        typeof profile.is_profile_public === 'boolean' ? profile.is_profile_public : true,
+      show_email: typeof profile.show_email === 'boolean' ? profile.show_email : false,
+    };
+
+  return {
+    id: profile.id ?? 0,
+    userid: profile.userid ?? '',
+    display_name: profile.display_name ?? '',
+    profile_image_url:
+      profile.profile_image_url !== undefined ? profile.profile_image_url : null,
+    bio: profile.bio ?? '',
+    stats: {
+      prompts:
+        statsSource.prompts ??
+        statsSource.prompt_count ??
+        profile.prompt_count ??
+        profile.prompts ??
+        0,
+      stars:
+        statsSource.stars ??
+        statsSource.star_count ??
+        profile.star_count ??
+        profile.stars ??
+        0,
+      forks: statsSource.forks ?? statsSource.fork_count ?? profile.fork_count ?? profile.forks ?? 0,
+    },
+    visibility: {
+      is_profile_public: visibilitySource.is_profile_public ?? true,
+      show_email: visibilitySource.show_email ?? false,
+    },
+    email: profile.email,
+    theme: profile.theme,
+    language: profile.language,
+    timezone: profile.timezone,
+    default_prompt_visibility: profile.default_prompt_visibility,
+  };
+};
+
+const profileToUser = (profile: UserProfile, fallback?: User | null): User => ({
+  id: profile.id,
+  email: profile.email ?? fallback?.email ?? '',
+  userid: profile.userid,
+  display_name: profile.display_name,
+  profile_image_url:
+    profile.profile_image_url !== undefined
+      ? profile.profile_image_url
+      : fallback?.profile_image_url,
+  theme: profile.theme ?? fallback?.theme,
+  language: profile.language ?? fallback?.language,
+  timezone: profile.timezone ?? fallback?.timezone,
+  default_prompt_visibility:
+    (profile.default_prompt_visibility as User['default_prompt_visibility']) ??
+    fallback?.default_prompt_visibility,
+});
+
+const isUserEqual = (a: User | null | undefined, b: User): boolean => {
+  if (!a) return false;
+  return (
+    a.id === b.id &&
+    a.email === b.email &&
+    a.userid === b.userid &&
+    a.display_name === b.display_name &&
+    (a.profile_image_url ?? null) === (b.profile_image_url ?? null) &&
+    (a.theme ?? null) === (b.theme ?? null) &&
+    (a.language ?? null) === (b.language ?? null) &&
+    (a.timezone ?? null) === (b.timezone ?? null) &&
+    (a.default_prompt_visibility ?? null) === (b.default_prompt_visibility ?? null)
+  );
+};
 
 interface AppState {
   // 인증 관련
   isAuthenticated: boolean;
   user: User | null;
   accessToken: string | null;
-  refreshToken: string | null;
 
   // 프로필 관련 (다른 사용자 프로필 조회용)
   viewedProfile: UserProfile | null;
   userPrompts: UserPromptsResponse | null;
   userFavorites: UserFavoritesResponse | null;
-  userForks: UserForksResponse | null;
   userActivity: UserActivityResponse | null;
 
   // 기존 상태
@@ -36,16 +110,13 @@ interface AppState {
   register: (email: string, password: string, userid: string, displayName: string) => Promise<void>;
   logout: () => Promise<void>;
   initializeAuth: () => Promise<void>;
-  completeOAuthLogin: (accessToken: string, user: User) => void;
   setUser: (user: User | null) => void;
-  setTokens: (accessToken: string, refreshToken?: string) => void;
 
   // 프로필 액션
   fetchUserProfile: (userid: string) => Promise<void>;
   updateUserProfile: (userid: string, data: { display_name?: string; bio?: string; email?: string; profile_image_url?: string }) => Promise<void>;
   fetchUserPrompts: (userid: string, page?: number) => Promise<void>;
   fetchUserFavorites: (userid: string, page?: number) => Promise<void>;
-  fetchUserForks: (userid: string, page?: number) => Promise<void>;
   fetchUserActivity: (userid: string, page?: number) => Promise<void>;
 
   // 기존 액션
@@ -61,17 +132,15 @@ export const useAppStore = create<AppState>((set, get) => ({
   isAuthenticated: false,
   user: null,
   accessToken: null,
-  refreshToken: null,
 
   // 프로필 초기 상태
   viewedProfile: null,
   userPrompts: null,
   userFavorites: null,
-  userForks: null,
   userActivity: null,
 
-  selectedPrompt: undefined,
-  selectedCategory: 'Dev',
+  selectedPromptId: null,
+  selectedCategoryCode: null,
   searchQuery: '',
   draftPromptContent: '',
   favoriteVersions: {},
@@ -134,15 +203,14 @@ export const useAppStore = create<AppState>((set, get) => ({
     } finally {
       // 로컬 스토리지 정리
       localStorage.removeItem('access_token');
-      localStorage.removeItem('refresh_token');
       localStorage.removeItem('user');
 
       set({
         isAuthenticated: false,
         user: null,
         accessToken: null,
-        refreshToken: null,
         selectedPromptId: null,
+        selectedCategoryCode: null,
       });
     }
   },
@@ -152,67 +220,85 @@ export const useAppStore = create<AppState>((set, get) => ({
     const token = localStorage.getItem('access_token');
     const userStr = localStorage.getItem('user');
 
+    const attemptGetMe = async () => {
+      const profile = normalizeProfile(await authApi.getMe());
+      const summary = profileToUser(profile, get().user);
+      const shouldUpdateUser = !isUserEqual(get().user, summary);
+      set((state) => ({
+        isAuthenticated: true,
+        user: shouldUpdateUser ? summary : state.user,
+        accessToken: localStorage.getItem('access_token'),
+        viewedProfile: profile,
+      }));
+      if (shouldUpdateUser) {
+        localStorage.setItem('user', JSON.stringify(summary));
+      }
+    };
+
+    const clearSession = () => {
+      localStorage.removeItem('access_token');
+      localStorage.removeItem('user');
+      set({
+        isAuthenticated: false,
+        user: null,
+        accessToken: null,
+      });
+    };
+
+    const attemptRefresh = async () => {
+      const refresh = await authApi.refreshToken();
+      localStorage.setItem('access_token', refresh.access_token);
+      await attemptGetMe();
+    };
+
     if (token) {
       try {
-        // 토큰으로 사용자 정보 다시 가져오기
-        const user = await authApi.getMe();
-
-        set({
-          isAuthenticated: true,
-          user,
-          accessToken: token,
-        });
+        await attemptGetMe();
+        return;
       } catch (error) {
-        // 토큰이 유효하지 않으면 로그아웃 처리
-        console.error('Token validation failed:', error);
-        localStorage.removeItem('access_token');
-        localStorage.removeItem('user');
-
-        set({
-          isAuthenticated: false,
-          user: null,
-          accessToken: null,
-        });
+        console.warn('Access token invalid, attempting refresh...');
+        try {
+          await attemptRefresh();
+          return;
+        } catch (refreshError) {
+          console.error('Token refresh failed:', refreshError);
+        }
       }
-    } else if (userStr) {
-      // 토큰은 없지만 user 정보는 남아있는 경우 정리
-      localStorage.removeItem('user');
+    } else {
+      try {
+        await attemptRefresh();
+        return;
+      } catch (refreshError) {
+        console.error('Token refresh failed:', refreshError);
+      }
     }
+
+    clearSession();
   },
 
   // 사용자 정보 설정
   setUser: (user: User | null) => set({ user }),
 
-  // 토큰 설정
-  setTokens: (accessToken: string, refreshToken?: string) => {
-    localStorage.setItem('access_token', accessToken);
-    if (refreshToken) {
-      localStorage.setItem('refresh_token', refreshToken);
-    }
-
-    set({
-      accessToken,
-      refreshToken: refreshToken || get().refreshToken,
-    });
-  },
-
-  // OAuth 로그인 완료
-  completeOAuthLogin: (accessToken: string, user: User) => {
-    localStorage.setItem('access_token', accessToken);
-    localStorage.setItem('user', JSON.stringify(user));
-
-    set({
-      isAuthenticated: true,
-      user,
-      accessToken,
-    });
-  },
-
   // 프로필 조회
   fetchUserProfile: async (userid: string) => {
     try {
-      const profile = await userApi.getProfile(userid);
-      set({ viewedProfile: profile });
+      const currentUser = get().user;
+      let profileData: UserProfile | ProfileLike;
+      if (currentUser && currentUser.userid === userid) {
+        profileData = await authApi.getMe();
+      } else {
+        profileData = await userApi.getProfile(userid);
+      }
+      const normalized = normalizeProfile(profileData);
+      set({ viewedProfile: normalized });
+
+      if (currentUser && currentUser.userid === userid) {
+        const summary = profileToUser(normalized, currentUser);
+        if (!isUserEqual(currentUser, summary)) {
+          set({ user: summary });
+          localStorage.setItem('user', JSON.stringify(summary));
+        }
+      }
     } catch (error) {
       console.error('Failed to fetch user profile:', error);
       throw error;
@@ -226,30 +312,19 @@ export const useAppStore = create<AppState>((set, get) => ({
   ) => {
     try {
       const updatedProfile = await userApi.updateProfile(userid, data);
+      const normalized = normalizeProfile(updatedProfile);
 
       // viewedProfile 업데이트
-      set({ viewedProfile: updatedProfile });
+      set({ viewedProfile: normalized });
 
       // 본인 프로필인 경우 user 정보도 업데이트
       const currentUser = get().user;
       if (currentUser && currentUser.userid === userid) {
-        set({
-          user: {
-            ...currentUser,
-            display_name: updatedProfile.display_name,
-            email: updatedProfile.email || currentUser.email,
-            profile_image_url: updatedProfile.profile_image_url,
-          },
-        });
-        localStorage.setItem(
-          'user',
-          JSON.stringify({
-            ...currentUser,
-            display_name: updatedProfile.display_name,
-            email: updatedProfile.email || currentUser.email,
-            profile_image_url: updatedProfile.profile_image_url,
-          })
-        );
+        const summary = profileToUser(normalized, currentUser);
+        if (!isUserEqual(currentUser, summary)) {
+          set({ user: summary });
+          localStorage.setItem('user', JSON.stringify(summary));
+        }
       }
     } catch (error) {
       console.error('Failed to update user profile:', error);
@@ -280,16 +355,6 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   // 포크 목록 조회
-  fetchUserForks: async (userid: string, page = 1) => {
-    try {
-      const forks = await userApi.getUserForks(userid, { page, limit: 20, sort: 'recent' });
-      set({ userForks: forks });
-    } catch (error) {
-      console.error('Failed to fetch user forks:', error);
-      throw error;
-    }
-  },
-
   // 활동 로그 조회
   fetchUserActivity: async (userid: string, page = 1) => {
     try {

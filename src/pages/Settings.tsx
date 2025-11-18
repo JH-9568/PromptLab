@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ArrowLeft, User, Bell, Shield, Trash2, Download, RefreshCw, Mail, Lock } from 'lucide-react';
+import { ArrowLeft, User, Bell, Shield, Trash2, Mail } from 'lucide-react';
 import { useNavigate, Navigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -22,7 +22,7 @@ import { changePassword } from '@/lib/api/k/auth';
 import * as settingsApi from '@/lib/api/k/settings';
 import * as notificationsApi from '@/lib/api/k/notifications';
 import * as userApi from '@/lib/api/k/user';
-import type { ProfileSettings, PrivacySettings, EnvironmentSettings, DataExportJob } from '@/types/settings';
+import type { ProfileSettings, PrivacySettings, EnvironmentSettings } from '@/types/settings';
 import type { NotificationSettings } from '@/types/notifications';
 
 export function Settings() {
@@ -65,11 +65,6 @@ export function Settings() {
   const [newEmail, setNewEmail] = useState('');
   const [emailToken, setEmailToken] = useState('');
   const [isChangingEmail, setIsChangingEmail] = useState(false);
-
-  // Data export state
-  const [isExporting, setIsExporting] = useState(false);
-  const [exportJobs, setExportJobs] = useState<DataExportJob[]>([]);
-  const [isCheckingExport, setIsCheckingExport] = useState(false);
 
   // Account deletion state (password verification)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -292,58 +287,6 @@ export function Settings() {
       alert('알림 설정 업데이트에 실패했습니다.');
     } finally {
       setIsUpdatingNotifications(false);
-    }
-  };
-
-  // Data export handler
-  const handleDataExport = async () => {
-    setIsExporting(true);
-    try {
-      const response = await settingsApi.requestDataExport({
-        include: ['profile', 'prompts', 'versions', 'playground_history', 'activity'],
-      });
-
-      // Add to export jobs list
-      setExportJobs([
-        {
-          job_id: response.job_id,
-          status: response.status,
-        },
-        ...exportJobs,
-      ]);
-
-      alert(`데이터 내보내기가 요청되었습니다.\nJob ID: ${response.job_id}`);
-    } catch (error) {
-      console.error('Data export error:', error);
-      alert('데이터 내보내기 요청에 실패했습니다.');
-    } finally {
-      setIsExporting(false);
-    }
-  };
-
-  // Check export status
-  const handleCheckExportStatus = async (jobId: string) => {
-    setIsCheckingExport(true);
-    try {
-      const job = await settingsApi.getDataExportStatus(jobId);
-
-      // Update job in list
-      setExportJobs(
-        exportJobs.map((j) => (j.job_id === jobId ? job : j))
-      );
-
-      if (job.status === 'ready' && job.file_url) {
-        alert('내보내기 완료! 다운로드 버튼을 클릭하세요.');
-      } else if (job.status === 'failed') {
-        alert('내보내기 실패. 다시 시도해주세요.');
-      } else {
-        alert(`현재 상태: ${job.status}`);
-      }
-    } catch (error) {
-      console.error('Check export status error:', error);
-      alert('상태 확인에 실패했습니다.');
-    } finally {
-      setIsCheckingExport(false);
     }
   };
 
@@ -809,64 +752,8 @@ export function Settings() {
                   </Select>
                 </div>
                 <Separator />
-                <div className="space-y-3">
-                  <Button
-                    variant="outline"
-                    className="w-full"
-                    onClick={handleDataExport}
-                    disabled={isExporting}
-                  >
-                    <Download className="w-4 h-4 mr-2" />
-                    {isExporting ? '요청 중...' : '데이터 내보내기 요청'}
-                  </Button>
-
-                  {/* Export Jobs List */}
-                  {exportJobs.length > 0 && (
-                    <div className="mt-4 space-y-2">
-                      <Label>최근 내보내기 요청</Label>
-                      <div className="border rounded-lg divide-y">
-                        {exportJobs.map((job) => (
-                          <div key={job.job_id} className="p-3 space-y-2">
-                            <div className="flex items-center justify-between">
-                              <div className="space-y-1">
-                                <p className="text-xs font-mono text-muted-foreground">
-                                  {job.job_id}
-                                </p>
-                                <p className="text-sm font-medium">
-                                  상태: {job.status}
-                                </p>
-                                {job.expires_at && (
-                                  <p className="text-xs text-muted-foreground">
-                                    만료: {new Date(job.expires_at).toLocaleString()}
-                                  </p>
-                                )}
-                              </div>
-                              <div className="flex gap-2">
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => handleCheckExportStatus(job.job_id)}
-                                  disabled={isCheckingExport}
-                                >
-                                  <RefreshCw className="w-3 h-3 mr-1" />
-                                  확인
-                                </Button>
-                                {job.status === 'ready' && job.file_url && (
-                                  <Button
-                                    size="sm"
-                                    onClick={() => window.open(job.file_url, '_blank')}
-                                  >
-                                    <Download className="w-3 h-3 mr-1" />
-                                    다운로드
-                                  </Button>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
+                <div className="text-sm text-muted-foreground">
+                  데이터 내보내기 기능은 아직 제공되지 않습니다. 필요한 항목은 직접 복사해 보관해 주세요.
                 </div>
                 <Separator />
                 <Button

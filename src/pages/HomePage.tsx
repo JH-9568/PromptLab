@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import logoImage from '@/assets/logo.png';
 import { useAppStore } from '@/store/useAppStore';
-import { listPrompts } from '@/lib/api/j/prompts';
+import { listPrompts } from '@/lib/api/k/prompts';
 import type { PromptSummary } from '@/types/prompt';
 import { getCategoryVisual } from '@/lib/category-visuals';
 import { DEFAULT_PROMPT_CATEGORIES } from '@/constants/categories';
@@ -27,7 +27,7 @@ export function HomePage() {
       setIsLoading(true);
       setErrorMessage(null);
       try {
-        const promptResponse = await listPrompts({ limit: 12 });
+        const promptResponse = await listPrompts({ limit: 12 }, { publicAccess: true });
         const items = promptResponse.items || [];
         const sortedByStars = [...items].sort(
           (a, b) => (b.star_count ?? 0) - (a.star_count ?? 0)

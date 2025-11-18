@@ -1,11 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Play, Loader2, Sparkles, Heart, MessageSquare, Send, Trash2 } from 'lucide-react';
+import { ArrowLeft, Play, Loader2, Sparkles, Heart, MessageSquare, Send, Trash2, Share2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useAppStore } from '@/store/useAppStore';
 import {
   getPrompt,
@@ -16,9 +19,11 @@ import {
   listPromptComments,
   createPromptComment,
   deletePromptComment,
-} from '@/lib/api/j/prompts';
-import { runPlayground } from '@/lib/api/j/playground';
-import { listMyFavoritePrompts } from '@/lib/api/j/users';
+} from '@/lib/api/k/prompts';
+import { runPlayground } from '@/lib/api/k/playground';
+import { getUserFavorites } from '@/lib/api/k/user';
+import { getMyWorkspaces, sharePromptToWorkspace } from '@/lib/api/k/workspaces';
+import type { WorkspaceRole, WorkspaceSummary } from '@/types/workspace';
 import type { PromptDetail, PromptVersion, PromptComment } from '@/types/prompt';
 
 export function PromptRepository() {
@@ -54,6 +59,12 @@ export function PromptRepository() {
   const [commentError, setCommentError] = useState<string | null>(null);
   const [newComment, setNewComment] = useState('');
   const [isCommentSubmitting, setIsCommentSubmitting] = useState(false);
+  const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
+  const [shareWorkspaces, setShareWorkspaces] = useState<WorkspaceSummary[]>([]);
+  const [isShareLoading, setIsShareLoading] = useState(false);
+  const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<number | null>(null);
+  const [shareRole, setShareRole] = useState<WorkspaceRole>('editor');
+  const [isSharing, setIsSharing] = useState(false);
 
   useEffect(() => {
     try {
@@ -178,7 +189,7 @@ export function PromptRepository() {
     let cancelled = false;
     setFavoritesLoading(true);
     setFavoriteError(null);
-    listMyFavoritePrompts(currentUser.userid, { limit: 200 })
+    getUserFavorites(currentUser.userid, { limit: 200 })
       .then((response) => {
         if (cancelled) return;
         const ids = new Set(
@@ -217,6 +228,22 @@ export function PromptRepository() {
       cancelled = true;
     };
   }, [currentUser, logout, setFavoriteStatus]);
+
+  useEffect(() => {
+    if (!isShareDialogOpen || !currentUser) return;
+    setIsShareLoading(true);
+    getMyWorkspaces({ limit: 50 })
+      .then((response) => {
+        setShareWorkspaces(response.items);
+        if (response.items.length > 0 && !selectedWorkspaceId) {
+          setSelectedWorkspaceId(response.items[0].id);
+        }
+      })
+      .catch((error) => {
+        console.error('워크스페이스 목록을 불러오지 못했습니다.', error);
+      })
+      .finally(() => setIsShareLoading(false));
+  }, [isShareDialogOpen, currentUser, selectedWorkspaceId]);
 
   const sortedVersions = useMemo(
     () =>
@@ -276,6 +303,8 @@ export function PromptRepository() {
   const isFavorite =
     activeVersionNumericId !== null &&
     (favoriteVersionIds.has(activeVersionNumericId) || favoriteVersions[activeVersionNumericId]);
+  const isPromptOwner =
+    currentUser && activeVersion?.created_by && Number(activeVersion.created_by) === currentUser.id;
 
   const handleSubmitComment = async () => {
     if (!promptId || !activeVersionId || !newComment.trim() || isCommentSubmitting) return;
@@ -340,6 +369,31 @@ export function PromptRepository() {
     }
   };
 
+  const handleSharePrompt = async () => {
+    if (!promptId || !selectedWorkspaceId) return;
+    setIsSharing(true);
+    try {
+      await sharePromptToWorkspace(selectedWorkspaceId, promptId, { role: shareRole });
+      alert('팀에 프롬프트를 공유했습니다.');
+      setIsShareDialogOpen(false);
+    } catch (error) {
+      console.error('프롬프트 공유 실패', error);
+      const status =
+        typeof error === 'object' && error !== null && 'response' in error
+          ? (error as { response?: { status?: number } }).response?.status
+          : undefined;
+      if (status === 409) {
+        alert('이미 공유된 팀입니다. 다른 팀을 선택하거나 기존 공유를 해제해주세요.');
+      } else if (status === 403) {
+        alert('해당 프롬프트를 공유할 권한이 없습니다.');
+      } else {
+        alert('프롬프트를 공유하지 못했습니다. 잠시 후 다시 시도해주세요.');
+      }
+    } finally {
+      setIsSharing(false);
+    }
+  };
+
   if (!promptId) {
     return (
       <div className="min-h-screen gradient-dark-bg gradient-overlay flex items-center justify-center px-6">
@@ -373,6 +427,16 @@ export function PromptRepository() {
               </div>
             </div>
             <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
+              {isPromptOwner && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsShareDialogOpen(true)}
+                >
+                  <Share2 className="w-4 h-4 mr-2" />
+                  팀에 공유
+                </Button>
+              )}
               <Button
                 variant="outline"
                 size="icon"
@@ -654,6 +718,77 @@ export function PromptRepository() {
           </CardContent>
         </Card>
       </div>
+      <Dialog open={isShareDialogOpen} onOpenChange={setIsShareDialogOpen}>
+        <DialogContent className="sm:max-w-[480px]">
+          <DialogHeader>
+            <DialogTitle>팀에 프롬프트 공유</DialogTitle>
+            <DialogDescription>
+              선택한 팀 워크스페이스에 이 프롬프트를 공유합니다. 팀 멤버들이 볼 수 있게 됩니다.
+            </DialogDescription>
+          </DialogHeader>
+          {isShareLoading ? (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              워크스페이스를 불러오는 중입니다...
+            </div>
+          ) : shareWorkspaces.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              공유 가능한 워크스페이스가 없습니다. 팀을 만들거나 초대를 받아주세요.
+            </p>
+          ) : (
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label>워크스페이스</Label>
+                <Select
+                  value={selectedWorkspaceId ? String(selectedWorkspaceId) : undefined}
+                  onValueChange={(value) => setSelectedWorkspaceId(Number(value))}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="워크스페이스 선택" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {shareWorkspaces.map((workspace) => (
+                      <SelectItem key={workspace.id} value={String(workspace.id)}>
+                        {workspace.name} ({workspace.role})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>권한</Label>
+                <Select value={shareRole} onValueChange={(value) => setShareRole(value as WorkspaceRole)}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="viewer">보기 전용</SelectItem>
+                    <SelectItem value="editor">편집 가능</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsShareDialogOpen(false)} disabled={isSharing}>
+              취소
+            </Button>
+            <Button
+              onClick={handleSharePrompt}
+              disabled={isSharing || !selectedWorkspaceId || shareWorkspaces.length === 0}
+            >
+              {isSharing ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  공유 중...
+                </>
+              ) : (
+                '공유하기'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -75,38 +75,6 @@ export interface EmailChangeConfirmResponse {
   changed: boolean;
 }
 
-// 세션 관리
-
-export interface Session {
-  id: string;
-  ip: string;
-  ua: string;
-  last_active_at: string;
-  this_device: boolean;
-}
-
-export interface SessionsResponse {
-  items: Session[];
-}
-
-// 데이터 내보내기
-
-export interface DataExportRequest {
-  include: ('profile' | 'prompts' | 'versions' | 'playground_history' | 'activity')[];
-}
-
-export interface DataExportResponse {
-  job_id: string;
-  status: 'queued' | 'running' | 'ready' | 'failed' | 'expired';
-}
-
-export interface DataExportJob {
-  job_id: string;
-  status: 'queued' | 'running' | 'ready' | 'failed' | 'expired';
-  file_url?: string;
-  expires_at?: string;
-}
-
 // 에러 코드
 
 export type SettingsErrorCode =
@@ -116,10 +84,4 @@ export type SettingsErrorCode =
   | 'INVALID_EMAIL'
   | 'TOO_MANY_REQUESTS'
   | 'INVALID_TOKEN'
-  | 'TOKEN_EXPIRED'
-  | 'SESSION_NOT_FOUND'
-  | 'REAUTH_REQUIRED'
-  | 'PENDING_EXPORT'
-  | 'LOCKED'
-  | 'EXPORT_NOT_FOUND'
-  | 'EXPORT_IN_PROGRESS';
+  | 'TOKEN_EXPIRED';

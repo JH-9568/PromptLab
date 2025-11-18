@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAppStore } from '@/store/useAppStore';
-import { getPromptVersion, listPrompts } from '@/lib/api/j/prompts';
+import { getPromptVersion, listPrompts } from '@/lib/api/k/prompts';
 import type { PromptSummary, PromptVersion } from '@/types/prompt';
 import { getCategoryVisual } from '@/lib/category-visuals';
 import { DEFAULT_PROMPT_CATEGORIES } from '@/constants/categories';
@@ -49,11 +49,14 @@ export function CategoryPage() {
       setErrorMessage(null);
 
       const fetchBySort = async (sort?: string) => {
-        const response = await listPrompts({
-          limit: 40,
-          category: activeCategory ?? undefined,
-          sort,
-        });
+        const response = await listPrompts(
+          {
+            limit: 40,
+            category: activeCategory ?? undefined,
+            sort,
+          },
+          { publicAccess: true }
+        );
 
         const candidates = response.items.filter((item) => item.latest_version);
         return Promise.all(

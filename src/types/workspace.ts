@@ -1,3 +1,5 @@
+import type { PromptCreatePayload } from '@/types/prompt';
+
 export type WorkspaceKind = 'personal' | 'team' | 'organization' | string;
 
 export type WorkspaceRole = 'admin' | 'editor' | 'viewer' | string;
@@ -8,6 +10,7 @@ export interface WorkspaceSummary {
   name: string;
   slug: string;
   role: WorkspaceRole;
+  description?: string | null;
 }
 
 export interface WorkspaceListResponse {
@@ -55,6 +58,7 @@ export interface WorkspaceInvite {
   role: WorkspaceRole;
   token: string;
   status: 'pending' | 'accepted' | 'rejected' | string;
+  user_id?: number;
 }
 
 export interface WorkspaceInviteListResponse {
@@ -78,7 +82,7 @@ export interface WorkspaceSharedPrompt {
     id: number;
     version_number: number;
     created_at: string;
-  };
+  } | null;
   stars: number;
   forks: number;
   tags: string[];
@@ -152,6 +156,21 @@ export interface WorkspaceSharePromptResponse {
   workspace_id: number;
   prompt_id: number;
   role: WorkspaceRole;
+}
+
+export type WorkspacePromptCreatePayload = PromptCreatePayload & {
+  role?: WorkspaceRole;
+};
+
+export interface WorkspacePromptCreateResponse {
+  workspace_id: number;
+  prompt_id: number;
+  role: WorkspaceRole;
+  prompt: {
+    id: number;
+    owner_id?: number;
+    latest_version_id?: number | null;
+  };
 }
 
 export interface WorkspaceInviteAcceptResponse {

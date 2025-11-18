@@ -3,13 +3,23 @@ import axios from 'axios';
 // 환경변수에서 API Base URL 가져오기
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
-// Axios 인스턴스 생성
-export const apiClient = axios.create({
+const baseConfig = {
   baseURL: API_BASE_URL,
   headers: {
     'Content-Type': 'application/json',
   },
-  withCredentials: true, 
+} as const;
+
+// 인증이 필요한 기본 클라이언트
+export const apiClient = axios.create({
+  ...baseConfig,
+  withCredentials: true,
+});
+
+// 공개용 클라이언트 (쿠키 없이)
+export const publicApiClient = axios.create({
+  ...baseConfig,
+  withCredentials: false,
 });
 
 // 요청 인터셉터: 모든 요청에 토큰 자동 추가

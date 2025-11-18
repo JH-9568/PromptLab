@@ -5,14 +5,12 @@ import type {
   LoginRequest,
   LoginResponse,
   RefreshResponse,
-  User,
   ChangePasswordRequest,
   PasswordResetRequest,
   PasswordResetConfirmRequest,
   SessionResponse,
-  OAuthLinkRequest,
-  OAuthLinkResponse,
 } from '@/types/auth';
+import type { UserProfile } from '@/types/user';
 
 // 회원가입
 export const register = async (data: RegisterRequest): Promise<RegisterResponse> => {
@@ -32,16 +30,14 @@ export const logout = async (): Promise<void> => {
 };
 
 // 토큰 재발급
-export const refreshToken = async (refreshToken: string): Promise<RefreshResponse> => {
-  const response = await apiClient.post<RefreshResponse>('/auth/refresh', {
-    refresh_token: refreshToken,
-  });
+export const refreshToken = async (): Promise<RefreshResponse> => {
+  const response = await apiClient.post<RefreshResponse>('/auth/refresh');
   return response.data;
 };
 
 // 내 정보 조회
-export const getMe = async (): Promise<User> => {
-  const response = await apiClient.get<User>('/auth/me');
+export const getMe = async (): Promise<UserProfile> => {
+  const response = await apiClient.get<UserProfile>('/auth/me');
   return response.data;
 };
 
@@ -64,15 +60,4 @@ export const confirmPasswordReset = async (data: PasswordResetConfirmRequest): P
 export const checkSession = async (): Promise<SessionResponse> => {
   const response = await apiClient.get<SessionResponse>('/auth/session');
   return response.data;
-};
-
-// OAuth 계정 연결
-export const linkOAuth = async (provider: string, data: OAuthLinkRequest): Promise<OAuthLinkResponse> => {
-  const response = await apiClient.post<OAuthLinkResponse>(`/auth/oauth/link/${provider}`, data);
-  return response.data;
-};
-
-// OAuth 계정 연결 해제
-export const unlinkOAuth = async (provider: string): Promise<void> => {
-  await apiClient.delete(`/auth/oauth/${provider}`);
 };

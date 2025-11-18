@@ -1,10 +1,9 @@
 import { useState, useEffect } from 'react';
-import { Bell, Check, Trash2, CheckCheck, X } from 'lucide-react';
+import { Bell, Check, CheckCheck, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
@@ -99,7 +98,7 @@ export function NotificationDropdown({ className }: NotificationDropdownProps) {
     }
   };
 
-  const getNotificationIcon = (type: string) => {
+  const getNotificationIcon = (_type: string) => {
     // You can customize icons based on type
     return '📬';
   };

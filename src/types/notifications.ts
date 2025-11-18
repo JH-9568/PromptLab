@@ -41,21 +41,6 @@ export type NotificationEntityType =
 export interface NotificationEntity {
   entity_type: NotificationEntityType;
   entity_id: number;
-  prompt?: {
-    id: number;
-    name: string;
-  };
-  version_number?: number;
-}
-
-export interface NotificationActor {
-  userid: string;
-  display_name: string;
-}
-
-export interface NotificationWorkspace {
-  id: number;
-  name: string;
 }
 
 // 알림 아이템
@@ -66,8 +51,8 @@ export interface Notification {
   title: string;
   body: string;
   entity: NotificationEntity;
-  actor: NotificationActor | null;
-  workspace: NotificationWorkspace | null;
+  actor_user_id?: number | null;
+  workspace_id?: number | null;
   is_read: boolean;
   created_at: string;
 }

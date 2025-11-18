@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useAppStore } from '@/store/useAppStore';
-import { getPromptVersion, listPrompts } from '@/lib/api/j/prompts';
+import { getPromptVersion, listPrompts } from '@/lib/api/k/prompts';
 import type { PromptSummary, PromptVersion } from '@/types/prompt';
 import { DEFAULT_PROMPT_CATEGORIES } from '@/constants/categories';
 
@@ -43,10 +43,13 @@ export function SearchResults() {
       setIsLoading(true);
       setErrorMessage(null);
       try {
-        const response = await listPrompts({
-          q: searchQuery || undefined,
-          limit: 40,
-        });
+        const response = await listPrompts(
+          {
+            q: searchQuery || undefined,
+            limit: 40,
+          },
+          { publicAccess: true }
+        );
         const enriched = await Promise.all(
           response.items.map(async (item) => {
             try {

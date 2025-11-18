@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ArrowLeft, Settings, Star, GitFork, Code2, LogOut, Loader2, Edit, Trash2, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, Settings, Star, Code2, LogOut, Loader2, Edit, Trash2, AlertTriangle } from 'lucide-react';
 import { useNavigate, Navigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -43,14 +43,12 @@ export function UserProfile() {
   const viewedProfile = useAppStore((state) => state.viewedProfile);
   const userPrompts = useAppStore((state) => state.userPrompts);
   const userFavorites = useAppStore((state) => state.userFavorites);
-  const userForks = useAppStore((state) => state.userForks);
   const userActivity = useAppStore((state) => state.userActivity);
 
   // 프로필 관련 액션
   const fetchUserProfile = useAppStore((state) => state.fetchUserProfile);
   const fetchUserPrompts = useAppStore((state) => state.fetchUserPrompts);
   const fetchUserFavorites = useAppStore((state) => state.fetchUserFavorites);
-  const fetchUserForks = useAppStore((state) => state.fetchUserForks);
   const fetchUserActivity = useAppStore((state) => state.fetchUserActivity);
   const updateUserProfile = useAppStore((state) => state.updateUserProfile);
 
@@ -67,7 +65,6 @@ export function UserProfile() {
           fetchUserProfile(currentUser.userid),
           fetchUserPrompts(currentUser.userid),
           fetchUserFavorites(currentUser.userid),
-          fetchUserForks(currentUser.userid),
           fetchUserActivity(currentUser.userid),
         ]);
       } catch (err) {
@@ -79,7 +76,7 @@ export function UserProfile() {
     };
 
     loadProfileData();
-  }, [currentUser, fetchUserProfile, fetchUserPrompts, fetchUserFavorites, fetchUserForks, fetchUserActivity]);
+  }, [currentUser, fetchUserProfile, fetchUserPrompts, fetchUserFavorites, fetchUserActivity]);
 
   // 사용자 정보가 없으면 로그인 페이지로 리다이렉트
   if (!currentUser) {
@@ -95,7 +92,6 @@ export function UserProfile() {
     stats: {
       prompts: 0,
       stars: 0,
-      forks: 0,
     },
   };
 
@@ -119,11 +115,15 @@ export function UserProfile() {
     setIsSaving(true);
 
     try {
-      await updateUserProfile(currentUser.userid, {
+      const payload = {
         display_name: editFormData.display_name,
-        bio: editFormData.bio,
-        profile_image_url: editFormData.profile_image_url,
-      });
+        bio: editFormData.bio ?? '',
+        profile_image_url: editFormData.profile_image_url?.trim()
+          ? editFormData.profile_image_url.trim()
+          : undefined,
+      };
+
+      await updateUserProfile(currentUser.userid, payload);
 
       setIsEditDialogOpen(false);
     } catch (err) {
@@ -241,11 +241,6 @@ export function UserProfile() {
                     <span className="text-xl sm:text-2xl">{user.stats?.stars || 0}</span>
                     <p className="text-xs text-muted-foreground">Stars</p>
                   </div>
-                  <div className="w-px h-8 sm:h-10 bg-border"></div>
-                  <div>
-                    <span className="text-xl sm:text-2xl">{user.stats?.forks || 0}</span>
-                    <p className="text-xs text-muted-foreground">Forks</p>
-                  </div>
                 </div>
               </div>
 
@@ -299,7 +294,7 @@ export function UserProfile() {
                 <Label htmlFor="display_name">표시 이름</Label>
                 <Input
                   id="display_name"
-                  value={editFormData.display_name}
+                  value={editFormData.display_name ?? ''}
                   onChange={(e) => setEditFormData({ ...editFormData, display_name: e.target.value })}
                   required
                   disabled={isSaving}
@@ -311,7 +306,7 @@ export function UserProfile() {
                 <Label htmlFor="bio">소개</Label>
                 <Textarea
                   id="bio"
-                  value={editFormData.bio}
+                  value={editFormData.bio ?? ''}
                   onChange={(e) => setEditFormData({ ...editFormData, bio: e.target.value })}
                   disabled={isSaving}
                   placeholder="자기소개를 입력하세요..."
@@ -324,7 +319,7 @@ export function UserProfile() {
                 <Input
                   id="profile_image_url"
                   type="url"
-                  value={editFormData.profile_image_url}
+                  value={editFormData.profile_image_url ?? ''}
                   onChange={(e) => setEditFormData({ ...editFormData, profile_image_url: e.target.value })}
                   disabled={isSaving}
                   placeholder="https://example.com/avatar.jpg"
@@ -360,16 +355,13 @@ export function UserProfile() {
 
         {/* Tabs */}
         <Tabs defaultValue="my-prompts" className="w-full">
-          <TabsList className="grid w-full grid-cols-3 mb-4 sm:mb-6">
+          <TabsList className="grid w-full grid-cols-2 mb-4 sm:mb-6">
             <TabsTrigger value="my-prompts" className="text-xs sm:text-sm">
               <span className="hidden sm:inline">내 프롬프트</span>
               <span className="sm:hidden">내 것</span> ({userPrompts?.items.length || 0})
             </TabsTrigger>
             <TabsTrigger value="starred" className="text-xs sm:text-sm">
               스타 ({userFavorites?.items.length || 0})
-            </TabsTrigger>
-            <TabsTrigger value="forked" className="text-xs sm:text-sm">
-              포크 ({userForks?.items.length || 0})
             </TabsTrigger>
           </TabsList>
 
@@ -380,6 +372,10 @@ export function UserProfile() {
                   <Card
                     key={prompt.id}
                     className="card-hover cursor-pointer border-border hover:border-primary active:scale-[0.98]"
+                    onClick={() => {
+                      setSelectedPromptId(prompt.id);
+                      navigate(`/repository?id=${prompt.id}`);
+                    }}
                   >
                     <CardHeader className="pb-3">
                       <div className="flex items-start justify-between mb-2">
@@ -387,11 +383,7 @@ export function UserProfile() {
                         <div className="flex items-center gap-2 text-xs text-muted-foreground">
                           <span className="flex items-center gap-1">
                             <Star className="w-3 h-3" />
-                            {prompt.stats.stars}
-                          </span>
-                          <span className="flex items-center gap-1">
-                            <GitFork className="w-3 h-3" />
-                            {prompt.stats.forks}
+                            {prompt.stats?.stars ?? 0}
                           </span>
                         </div>
                       </div>
@@ -424,6 +416,10 @@ export function UserProfile() {
                   <Card
                     key={favorite.prompt_version_id}
                     className="card-hover cursor-pointer border-border hover:border-primary active:scale-[0.98]"
+                    onClick={() => {
+                      setSelectedPromptId(favorite.prompt.id);
+                      navigate(`/repository?id=${favorite.prompt.id}&version=${favorite.prompt_version_id}`);
+                    }}
                   >
                     <CardHeader className="pb-3">
                       <div className="flex items-start justify-between mb-2">
@@ -456,44 +452,6 @@ export function UserProfile() {
             )}
           </TabsContent>
 
-          <TabsContent value="forked" className="space-y-3 sm:space-y-4">
-            {userForks && userForks.items.length > 0 ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {userForks.items.map((fork) => (
-                  <Card
-                    key={fork.target_prompt_id}
-                    className="card-hover cursor-pointer border-border hover:border-primary active:scale-[0.98]"
-                  >
-                    <CardHeader className="pb-3">
-                      <div className="flex items-start justify-between mb-2">
-                        <Badge variant="secondary" className="text-xs">포크됨</Badge>
-                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                          <GitFork className="w-3 h-3" />
-                        </div>
-                      </div>
-                      <CardTitle className="text-base">{fork.name}</CardTitle>
-                      <CardDescription className="text-sm">
-                        forked from @{fork.source_owner.userid}
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent className="pt-0">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs text-muted-foreground">
-                          {new Date(fork.forked_at).toLocaleDateString('ko-KR')} 포크
-                        </span>
-                        <span className="text-xs text-accent">보기 →</span>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-12 text-muted-foreground">
-                <GitFork className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                <p>아직 포크한 프롬프트가 없습니다</p>
-              </div>
-            )}
-          </TabsContent>
         </Tabs>
 
         {/* Activity Section */}
@@ -507,7 +465,6 @@ export function UserProfile() {
                 {userActivity.items.map((activity) => {
                   const actionLabels: Record<string, string> = {
                     created_prompt: '생성',
-                    forked_prompt: '포크',
                     starred_prompt: '스타',
                     updated_prompt: '업데이트',
                     created_version: '버전 생성',
@@ -530,7 +487,6 @@ export function UserProfile() {
                     <div key={activity.id} className="flex items-center gap-4 pb-4 border-b border-border last:border-0 last:pb-0">
                       <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
                         {activity.action === 'created_prompt' && <Code2 className="w-5 h-5 text-primary" />}
-                        {activity.action === 'forked_prompt' && <GitFork className="w-5 h-5 text-primary" />}
                         {activity.action === 'starred_prompt' && <Star className="w-5 h-5 text-primary" />}
                         {activity.action === 'updated_prompt' && <Code2 className="w-5 h-5 text-primary" />}
                         {activity.action === 'created_version' && <Code2 className="w-5 h-5 text-primary" />}

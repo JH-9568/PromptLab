@@ -16,12 +16,21 @@ import {
   getPrompt,
   getPromptVersion,
   listPromptCategories,
-} from '@/lib/api/j/prompts';
-import { fetchModels } from '@/lib/api/j/models';
+} from '@/lib/api/k/prompts';
+import { fetchModels } from '@/lib/api/k/models';
+import { createWorkspacePrompt } from '@/lib/api/k/workspaces';
 import type { ModelSummary } from '@/types/model';
 import { DEFAULT_PROMPT_CATEGORIES } from '@/constants/categories';
 
 const ALLOWED_MODEL_IDS = [1, 17];
+const MODEL_LABEL_OVERRIDES: Record<number, string> = {
+  1: 'ChatGPT',
+  17: 'Gemini',
+};
+const FALLBACK_MODELS: ModelSummary[] = [
+  { id: 1, provider: 'openai', model_code: 'gpt', display_name: 'ChatGPT', is_active: true },
+  { id: 17, provider: 'google', model_code: 'gemini', display_name: 'Gemini', is_active: true },
+];
 
 export function PromptEditor() {
   const navigate = useNavigate();
@@ -34,6 +43,13 @@ export function PromptEditor() {
     : null;
   const mode = searchParams.get('mode') === 'new-version' ? 'new-version' : 'new-prompt';
   const isNewVersion = mode === 'new-version' && !!targetPromptId;
+  const workspaceIdParam = searchParams.get('workspaceId');
+  const parsedWorkspaceId = workspaceIdParam ? Number(workspaceIdParam) : null;
+  const workspaceId =
+    typeof parsedWorkspaceId === 'number' && !Number.isNaN(parsedWorkspaceId)
+      ? parsedWorkspaceId
+      : null;
+  const isWorkspaceContext = workspaceId !== null;
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -62,14 +78,15 @@ export function PromptEditor() {
     const loadMeta = async () => {
       try {
         const modelResponse = await fetchModels({ active: true, limit: 50 });
-        const allowedModels = modelResponse.items.filter((item) =>
+        const activeModels = modelResponse.items.filter((item) =>
           ALLOWED_MODEL_IDS.includes(item.id)
         );
-        setModels(allowedModels);
-        if (allowedModels.length === 0) {
+        const usable = activeModels.length > 0 ? activeModels : FALLBACK_MODELS;
+        setModels(usable);
+        if (usable.length === 0) {
           setModelId(null);
-        } else if (!modelId || !allowedModels.some((model) => model.id === modelId)) {
-          setModelId(allowedModels[0].id);
+        } else if (!modelId || !usable.some((model) => model.id === modelId)) {
+          setModelId(usable[0].id);
         }
       } catch (error) {
         console.error('메타데이터 로딩 실패', error);
@@ -165,7 +182,7 @@ export function PromptEditor() {
 
   const handleBack = () => {
     setSelectedPromptId(null);
-    navigate('/');
+    navigate(isWorkspaceContext ? '/team' : '/');
   };
 
   const handleSave = async () => {
@@ -203,6 +220,31 @@ export function PromptEditor() {
         setSuccessMessage('새 버전을 생성했습니다.');
         setSelectedPromptId(targetPromptId);
         navigate(`/repository?id=${targetPromptId}&version=${response.id}`);
+      } else if (workspaceId !== null) {
+        const response = await createWorkspacePrompt(workspaceId, {
+          name: title || '새 팀 프롬프트',
+          description: description || undefined,
+          visibility: 'private',
+          tags: tagList,
+          content,
+          commit_message: commitMessage || 'Initial version',
+          category_code: normalizedCategoryCode,
+          is_draft: false,
+          model_setting: {
+            ai_model_id: modelId,
+            temperature,
+            max_token: maxTokens,
+          },
+          role: 'editor',
+        });
+        const newPromptId = response.prompt_id || response.prompt?.id;
+        setSuccessMessage('팀 프롬프트를 생성했습니다.');
+        if (newPromptId) {
+          setSelectedPromptId(newPromptId);
+          navigate(`/repository?id=${newPromptId}`);
+        } else {
+          navigate('/team');
+        }
       } else {
         const response = await createPrompt({
           name: title || '새 프롬프트',
@@ -392,7 +434,7 @@ export function PromptEditor() {
                     <SelectContent>
                       {models.map((model) => (
                         <SelectItem key={model.id} value={String(model.id)}>
-                          {model.display_name}
+                          {MODEL_LABEL_OVERRIDES[model.id] ?? model.display_name ?? `Model ${model.id}`}
                         </SelectItem>
                       ))}
                     </SelectContent>

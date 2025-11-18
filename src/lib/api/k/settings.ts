@@ -13,10 +13,6 @@ import type {
   EmailChangeRequestResponse,
   EmailChangeConfirmRequest,
   EmailChangeConfirmResponse,
-  SessionsResponse,
-  DataExportRequest,
-  DataExportResponse,
-  DataExportJob,
 } from '@/types/settings';
 
 // 프로필
@@ -83,25 +79,4 @@ export const confirmEmailChange = async (
   return response.data;
 };
 
-// 세션 관리
-
-export const getSessions = async (): Promise<SessionsResponse> => {
-  const response = await apiClient.get<SessionsResponse>('/settings/sessions');
-  return response.data;
-};
-
-export const revokeSession = async (sessionId: string): Promise<void> => {
-  await apiClient.delete(`/settings/sessions/${sessionId}`);
-};
-
-// 데이터 내보내기
-
-export const requestDataExport = async (data: DataExportRequest): Promise<DataExportResponse> => {
-  const response = await apiClient.post<DataExportResponse>('/settings/data-export', data);
-  return response.data;
-};
-
-export const getDataExportStatus = async (jobId: string): Promise<DataExportJob> => {
-  const response = await apiClient.get<DataExportJob>(`/settings/data-export/${jobId}`);
-  return response.data;
-};
+// 세션/데이터 내보내기는 백엔드에 아직 구현되어 있지 않습니다.

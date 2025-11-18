@@ -23,7 +23,6 @@ export function Header() {
   const user = useAppStore((state) => state.user);
   const logout = useAppStore((state) => state.logout);
   const setSelectedPromptId = useAppStore((state) => state.setSelectedPromptId);
-  const currentUser = useAppStore((state) => state.user);
 
   if (!isAuthenticated) return null;
 

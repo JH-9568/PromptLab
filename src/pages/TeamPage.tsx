@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Users, Plus, Copy, Star, GitFork, Trash2, Crown, Check, Loader2 } from 'lucide-react';
+import { ArrowLeft, Users, Plus, Star, Trash2, Crown, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -21,8 +21,7 @@ import {
   updateWorkspaceMemberRole,
   removeWorkspaceMember,
   getWorkspaceInvites,
-  cancelWorkspaceInvite,
-} from '@/lib/api/j/workspaces';
+} from '@/lib/api/k/workspaces';
 import type {
   WorkspaceSummary,
   WorkspaceDetail,
@@ -40,8 +39,8 @@ const roleLabelMap: Record<string, string> = {
 };
 
 const roleBadgeVariant = (role: string) => {
-  if (role === 'owner') return 'default';
-  if (role === 'admin') return 'secondary';
+  if (role === 'owner' || role === 'admin') return 'default';
+  if (role === 'editor') return 'secondary';
   return 'outline';
 };
 
@@ -62,7 +61,6 @@ export function TeamPage() {
   const [isCreateTeamModalOpen, setIsCreateTeamModalOpen] = useState(false);
   const [workspaceInvites, setWorkspaceInvites] = useState<WorkspaceInvite[]>([]);
   const [invitesLoading, setInvitesLoading] = useState(false);
-  const [copiedToken, setCopiedToken] = useState<string | null>(null);
   const [newTeamData, setNewTeamData] = useState({
     name: '',
     description: ''
@@ -73,6 +71,14 @@ export function TeamPage() {
   const [isCreatingWorkspace, setIsCreatingWorkspace] = useState(false);
   const [memberActionUserId, setMemberActionUserId] = useState<number | null>(null);
   const [isSendingInvite, setIsSendingInvite] = useState(false);
+  const openPromptEditor = () => {
+    setSelectedPromptId(null);
+    if (selectedWorkspace) {
+      navigate(`/editor?workspaceId=${selectedWorkspace.id}`);
+    } else {
+      navigate('/editor');
+    }
+  };
 
   const loadWorkspaces = useCallback(async () => {
     setIsListLoading(true);
@@ -163,8 +169,8 @@ export function TeamPage() {
         role: inviteRole,
       });
       setInviteEmail('');
-      setInviteStatus('초대 이메일을 보냈습니다.');
-      await loadWorkspaceInvites(selectedWorkspace.id);
+      setInviteStatus('초대가 완료되었습니다. 팀원 목록을 확인하세요.');
+      await loadWorkspaceDetail(selectedWorkspace.id);
     } catch (error) {
       console.error('초대 메일을 보내지 못했습니다.', error);
       setInviteStatus('초대 이메일 전송에 실패했습니다.');
@@ -175,6 +181,10 @@ export function TeamPage() {
   
   const handleMemberRoleChange = async (userId: number, newRole: WorkspaceRole) => {
     if (!selectedWorkspace) return;
+    if (workspaceDetail?.created_by?.id === userId) {
+      setErrorMessage('팀 생성자의 역할은 변경할 수 없습니다.');
+      return;
+    }
     setMemberActionUserId(userId);
     try {
       await updateWorkspaceMemberRole(selectedWorkspace.id, userId, newRole);
@@ -193,6 +203,10 @@ export function TeamPage() {
 
   const handleRemoveMember = async (userId: number) => {
     if (!selectedWorkspace) return;
+    if (workspaceDetail?.created_by?.id === userId) {
+      setErrorMessage('팀 생성자는 팀에서 제거할 수 없습니다.');
+      return;
+    }
     setMemberActionUserId(userId);
     try {
       await removeWorkspaceMember(selectedWorkspace.id, userId);
@@ -202,24 +216,6 @@ export function TeamPage() {
       setErrorMessage('멤버를 제거하지 못했습니다.');
     } finally {
       setMemberActionUserId(null);
-    }
-  };
-
-  const handleCopyInviteLink = (token: string) => {
-    const inviteUrl = `${window.location.origin}/workspace/invite?token=${token}`;
-    navigator.clipboard.writeText(inviteUrl);
-    setCopiedToken(token);
-    setTimeout(() => setCopiedToken(null), 2000);
-  };
-
-  const handleCancelInviteRequest = async (token: string) => {
-    if (!selectedWorkspace) return;
-    try {
-      await cancelWorkspaceInvite(token);
-      await loadWorkspaceInvites(selectedWorkspace.id);
-    } catch (error) {
-      console.error('초대 취소 실패', error);
-      setErrorMessage('초대를 취소하지 못했습니다.');
     }
   };
 
@@ -240,10 +236,6 @@ export function TeamPage() {
               <Star className="w-3 h-3" />
               {prompt.stars}
             </span>
-            <span className="flex items-center gap-1">
-              <GitFork className="w-3 h-3" />
-              {prompt.forks}
-            </span>
           </div>
         </div>
         <CardTitle className="text-base">{prompt.prompt.name}</CardTitle>
@@ -260,32 +252,37 @@ export function TeamPage() {
     </Card>
   );
 
-  const renderTeamCard = (workspace: WorkspaceSummary) => (
-    <Card 
-      key={workspace.id}
-      className="card-hover cursor-pointer border-border hover:border-primary active:scale-[0.98]"
-      onClick={() => setSelectedWorkspace(workspace)}
-    >
-      <CardHeader>
-        <div className="flex items-start justify-between mb-3">
-          <div className="w-14 h-14 rounded-xl bg-primary/10 flex items-center justify-center">
-            <span className="text-primary text-xl">{workspace.name.slice(0, 2).toUpperCase()}</span>
+  const renderTeamCard = (workspace: WorkspaceSummary) => {
+    const descriptionSnippet =
+      workspace.description?.trim() || (workspace.slug ? `slug: ${workspace.slug}` : '팀 정보 없음');
+
+    return (
+      <Card
+        key={workspace.id}
+        className="card-hover cursor-pointer border-border hover:border-primary active:scale-[0.98]"
+        onClick={() => setSelectedWorkspace(workspace)}
+      >
+        <CardHeader>
+          <div className="flex items-start justify-between mb-3">
+            <div className="w-14 h-14 rounded-xl bg-primary/10 flex items-center justify-center">
+              <span className="text-primary text-xl">{workspace.name.slice(0, 2).toUpperCase()}</span>
+            </div>
+            <Badge variant={roleBadgeVariant(workspace.role)} className="text-xs">
+              {roleLabelMap[workspace.role] ?? workspace.role}
+            </Badge>
           </div>
-          <Badge variant={roleBadgeVariant(workspace.role)} className="text-xs">
-            {roleLabelMap[workspace.role] ?? workspace.role}
-          </Badge>
-        </div>
-        <CardTitle>{workspace.name}</CardTitle>
-        <CardDescription className="line-clamp-2 text-xs">slug: {workspace.slug}</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <p className="text-sm text-muted-foreground flex items-center gap-1">
-          <Users className="w-4 h-4" />
-          {workspace.kind === 'personal' ? '개인 워크스페이스' : '팀 워크스페이스'}
-        </p>
-      </CardContent>
-    </Card>
-  );
+          <CardTitle>{workspace.name}</CardTitle>
+          <CardDescription className="line-clamp-2 text-xs">{descriptionSnippet}</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground flex items-center gap-1">
+            <Users className="w-4 h-4" />
+            {workspace.kind === 'personal' ? '개인 워크스페이스' : '팀 워크스페이스'}
+          </p>
+        </CardContent>
+      </Card>
+    );
+  };
 
   const memberCount = workspaceDetail?.members?.count ?? workspaceMembers.length;
   const promptCount = workspaceDetail?.prompts?.count ?? workspacePrompts.length;
@@ -493,10 +490,7 @@ export function TeamPage() {
               </Button>
               <Button
                 className="glow-primary bg-primary hover:bg-primary/90"
-                onClick={() => {
-                  setSelectedPromptId(null);
-                  navigate('/editor');
-                }}
+                onClick={openPromptEditor}
                 size="sm"
               >
                 <Plus className="w-4 h-4 sm:mr-2" />
@@ -550,13 +544,7 @@ export function TeamPage() {
               <p className="text-sm text-muted-foreground mb-4">
                 팀을 위한 첫 프롬프트를 만들어보세요
               </p>
-              <Button
-                className="bg-primary hover:bg-primary/90"
-                onClick={() => {
-                  setSelectedPromptId(null);
-                  navigate('/editor');
-                }}
-              >
+              <Button className="bg-primary hover:bg-primary/90" onClick={openPromptEditor}>
                 <Plus className="w-4 h-4 mr-2" />
                 첫 팀 프롬프트 만들기
               </Button>
@@ -619,7 +607,10 @@ export function TeamPage() {
                     <div className="flex items-center gap-2">
                       <Select
                         value={member.role}
-                        disabled={member.role === 'owner' || memberActionUserId === member.user.id}
+                        disabled={
+                          memberActionUserId === member.user.id ||
+                          workspaceDetail?.created_by?.id === member.user.id
+                        }
                         onValueChange={(value) =>
                           handleMemberRoleChange(member.user.id, value as WorkspaceRole)
                         }
@@ -635,7 +626,7 @@ export function TeamPage() {
                           ))}
                         </SelectContent>
                       </Select>
-                      {member.role !== 'owner' && (
+                      {workspaceDetail?.created_by?.id !== member.user.id && (
                         <Button
                           variant="ghost"
                           size="sm"
@@ -658,60 +649,44 @@ export function TeamPage() {
 
             {/* Invite Members Tab */}
             <TabsContent value="invite" className="space-y-4 mt-4">
-              <Card className="border-border">
-                <CardHeader>
-                  <CardTitle className="text-base">초대 현황</CardTitle>
-                  <CardDescription>발송한 초대 링크를 관리하세요</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  {invitesLoading ? (
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      초대를 불러오는 중입니다...
-                    </div>
-                  ) : workspaceInvites.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">현재 대기 중인 초대가 없습니다.</p>
-                  ) : (
-                    workspaceInvites.map((invite) => (
-                      <div
-                        key={invite.token}
-                        className="border border-border rounded-lg p-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"
-                      >
-                        <div className="space-y-1">
-                          <p className="text-sm font-medium">{invite.invited_email}</p>
-                          <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                            <Badge variant="outline" className="capitalize">
-                              {roleLabelMap[invite.role] ?? invite.role}
-                            </Badge>
-                            <span className="uppercase">{invite.status}</span>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleCopyInviteLink(invite.token)}
-                          >
-                            {copiedToken === invite.token ? (
-                              <Check className="w-4 h-4 text-green-500" />
-                            ) : (
-                              <Copy className="w-4 h-4" />
-                            )}
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="text-destructive"
-                            onClick={() => handleCancelInviteRequest(invite.token)}
-                          >
-                            취소
-                          </Button>
+            <Card className="border-border">
+              <CardHeader>
+                <CardTitle className="text-base">최근 초대/가입 기록</CardTitle>
+                <CardDescription>초대를 보내면 바로 팀에 추가됩니다.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {invitesLoading ? (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    초대를 불러오는 중입니다...
+                  </div>
+                ) : workspaceInvites.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    아직 초대를 통해 합류한 팀원이 없습니다.
+                  </p>
+                ) : (
+                  workspaceInvites.map((invite) => (
+                    <div
+                      key={invite.token}
+                      className="border border-border rounded-lg p-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"
+                    >
+                      <div className="space-y-1">
+                        <p className="text-sm font-medium">{invite.invited_email}</p>
+                        <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                          <Badge variant="outline" className="capitalize">
+                            {roleLabelMap[invite.role] ?? invite.role}
+                          </Badge>
+                          <span className="uppercase text-green-600">accepted</span>
                         </div>
                       </div>
-                    ))
-                  )}
-                </CardContent>
-              </Card>
+                      <div className="text-xs text-muted-foreground">
+                        팀원으로 자동 추가되었습니다.
+                      </div>
+                    </div>
+                  ))
+                )}
+              </CardContent>
+            </Card>
 
               <Card className="border-border">
                 <CardHeader>

@@ -10,12 +10,20 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { useAppStore } from '@/store/useAppStore';
-import { getPlaygroundHistory, listPlaygroundHistory, runPlayground } from '@/lib/api/j/playground';
-import { fetchModels } from '@/lib/api/j/models';
+import { getPlaygroundHistory, listPlaygroundHistory, runPlayground } from '@/lib/api/k/playground';
+import { fetchModels } from '@/lib/api/k/models';
 import type { PlaygroundHistorySummary } from '@/types/playground';
 import type { ModelSummary } from '@/types/model';
 
 const ALLOWED_MODEL_IDS = [1, 17];
+const MODEL_LABEL_OVERRIDES: Record<number, string> = {
+  1: 'ChatGPT',
+  17: 'Gemini',
+};
+const FALLBACK_MODELS: ModelSummary[] = [
+  { id: 1, provider: 'openai', model_code: 'gpt', display_name: 'ChatGPT', is_active: true },
+  { id: 17, provider: 'google', model_code: 'gemini', display_name: 'Gemini', is_active: true },
+];
 
 export function Playground() {
   const [input, setInput] = useState('');
@@ -31,13 +39,18 @@ export function Playground() {
 
   const loadModels = useCallback(async () => {
     try {
-      const response = await fetchModels({ active: true, limit: 20 });
-      const allowed = response.items.filter((item) => ALLOWED_MODEL_IDS.includes(item.id));
-      setModels(allowed);
-      if (allowed.length === 0) {
+      const response = await fetchModels({ active: true, limit: 50 });
+      const available = response.items.filter((item) => ALLOWED_MODEL_IDS.includes(item.id));
+      const usable = available.length > 0 ? available : FALLBACK_MODELS;
+      setModels(usable);
+
+      if (usable.length === 0) {
         setSelectedModelId(null);
-      } else if (!selectedModelId || !allowed.some((item) => item.id === selectedModelId)) {
-        setSelectedModelId(allowed[0].id);
+        return;
+      }
+
+      if (!selectedModelId || !usable.some((item) => item.id === selectedModelId)) {
+        setSelectedModelId(usable[0].id);
       }
     } catch (error) {
       console.error('모델 목록을 불러오지 못했습니다.', error);
@@ -115,6 +128,21 @@ export function Playground() {
     navigate('/editor');
   };
 
+  const renderSummaryText = (
+    preview?: string | null,
+    length?: number,
+    fallback?: string
+  ) => {
+    const source = preview ?? fallback;
+    if (source && source.trim().length > 0) {
+      return source.length > 160 ? `${source.slice(0, 160)}…` : source;
+    }
+    if (typeof length === 'number') {
+      return `${length} chars`;
+    }
+    return '내용 없음';
+  };
+
   return (
     <div className="min-h-screen gradient-dark-bg gradient-overlay">
       {/* Header */}
@@ -132,7 +160,7 @@ export function Playground() {
             </div>
             <div className="flex items-center gap-1 sm:gap-2">
               <Select
-                value={selectedModelId ? String(selectedModelId) : undefined}
+                value={selectedModelId ? String(selectedModelId) : ''}
                 onValueChange={(value) => {
                   setSelectedModelId(Number(value));
                 }}
@@ -143,7 +171,7 @@ export function Playground() {
                 <SelectContent>
                   {models.map((item) => (
                     <SelectItem key={item.id} value={String(item.id)}>
-                      {item.display_name}
+                      {MODEL_LABEL_OVERRIDES[item.id] ?? item.display_name ?? `Model ${item.id}`}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -265,15 +293,15 @@ export function Playground() {
         </div>
 
         {/* History Section */}
-        {history.length > 0 && (
-          <Card className="mt-8 border-border">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Clock className="w-5 h-5" />
-                Recent Executions
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
+        <Card className="mt-8 border-border">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Clock className="w-5 h-5" />
+              Recent Executions
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {history.length > 0 ? (
               <div className="space-y-4">
                 {history.map((item) => (
                   <div key={item.id} className="p-4 bg-muted/50 rounded-lg border border-border">
@@ -286,32 +314,40 @@ export function Playground() {
                     <div className="grid md:grid-cols-2 gap-4">
                       <div>
                         <p className="text-xs text-muted-foreground mb-1">Input</p>
-                        <div className="bg-card p-2 rounded text-sm font-mono max-h-20 overflow-hidden">
-                          {typeof item.summary?.input_len === 'number' ? `${item.summary.input_len} chars` : 'N/A'}
+                        <div className="bg-card p-2 rounded text-sm max-h-24 overflow-hidden">
+                          {renderSummaryText(
+                            item.summary?.input_preview,
+                            item.summary?.input_len,
+                            item.test_content
+                          )}
                         </div>
                       </div>
                       <div>
                         <p className="text-xs text-muted-foreground mb-1">Output</p>
-                        <div className="bg-card p-2 rounded text-sm max-h-20 overflow-hidden">
-                          {typeof item.summary?.output_len === 'number' ? `${item.summary.output_len} chars` : 'N/A'}
+                        <div className="bg-card p-2 rounded text-sm max-h-24 overflow-hidden">
+                          {renderSummaryText(
+                            item.summary?.output_preview,
+                            item.summary?.output_len,
+                            item.output
+                          )}
                         </div>
                       </div>
                     </div>
                     <div className="mt-2 flex justify-end gap-2">
-                      <Button 
-                        variant="ghost" 
-                        size="sm"
-                        onClick={() => handleLoadHistory(item.id)}
-                      >
+                      <Button variant="ghost" size="sm" onClick={() => handleLoadHistory(item.id)}>
                         Load
                       </Button>
                     </div>
                   </div>
                 ))}
               </div>
-            </CardContent>
-          </Card>
-        )}
+            ) : (
+              <div className="text-center text-sm text-muted-foreground py-8">
+                최근 실행 기록이 없습니다. 프롬프트를 실행하면 이곳에 기록이 표시됩니다.
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </div>
     </div>
   );

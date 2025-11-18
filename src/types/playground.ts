@@ -77,7 +77,11 @@ export interface PlaygroundHistorySummary {
   prompt_version_id: number | null;
   model_id: number;
   tested_at: string;
+  test_content?: string;
+  output?: string;
   summary: {
+    input_preview?: string | null;
+    output_preview?: string | null;
     input_len: number;
     output_len: number;
     analyzer_score: number | null;

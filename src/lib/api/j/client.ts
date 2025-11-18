@@ -2,12 +2,21 @@ import axios from 'axios';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
-export const apiClient = axios.create({
+const baseConfig = {
   baseURL: API_BASE_URL,
   headers: {
     'Content-Type': 'application/json',
   },
+} as const;
+
+export const apiClient = axios.create({
+  ...baseConfig,
   withCredentials: true,
+});
+
+export const publicApiClient = axios.create({
+  ...baseConfig,
+  withCredentials: false,
 });
 
 apiClient.interceptors.request.use(
