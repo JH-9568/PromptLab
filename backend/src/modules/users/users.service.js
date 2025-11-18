@@ -31,8 +31,7 @@ const userService = {
   },
 
   getUserByIdForProfile: async (id) => {
-    try {
-      const [rows] = await pool.promise().query(
+    const sql = 
         `
         SELECT
           u.id,
@@ -69,12 +68,10 @@ const userService = {
 
         FROM user u
         WHERE u.id = ?
-        `,
-        [id]
-      );
-      return rows[0];
-    } catch (error) { throw new Error('Error finding user for profile'); }
-  },
+        `;
+        const [rows] = await pool.promise().query(sql, [id]);
+        return rows[0] || null;
+      },
   
   getUserByIdWithRefreshToken: async (id) => { 
     try {
