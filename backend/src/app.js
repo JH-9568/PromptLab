@@ -34,7 +34,7 @@ app.use(cookieParser());
 
 // 임시 로그인
 app.use(function(req, res, next){
-  req.user = { id: 3, is_admin: true };
+  req.user = { id: 4, is_admin: true };
   next();
 });
 
