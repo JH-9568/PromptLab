@@ -13,6 +13,7 @@ const userRouter = require('./modules/users/users.router');
 const promptRouter = require('./modules/prompts/prompt.router');
 const playgroundRouter = require('./modules/playground/playground.router');
 const modelRouter = require('./modules/models/model.router');
+const notificationRouter = require('./modules/notifications/notification.router');
 
 const app = express();
 
@@ -72,5 +73,7 @@ app.use((err, req, res, next) => {
     }
   });
 });
+
+app.use('/api/v1/notifications', notificationRouter);
 
 module.exports = app;
