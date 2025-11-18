@@ -27,6 +27,7 @@ export function PromptRepository() {
   const currentUser = useAppStore((state) => state.user);
   const favoriteVersions = useAppStore((state) => state.favoriteVersions);
   const setFavoriteStatus = useAppStore((state) => state.setFavoriteStatus);
+  const logout = useAppStore((state) => state.logout);
   const storedPromptId = useAppStore((state) => state.selectedPromptId);
   const [searchParams] = useSearchParams();
   const promptIdParam = searchParams.get('id');
@@ -192,8 +193,19 @@ export function PromptRepository() {
       })
       .catch((error) => {
         if (!cancelled) {
-          console.error('즐겨찾기 목록을 불러오지 못했습니다.', error);
-          setFavoriteError('즐겨찾기 정보를 불러오지 못했습니다.');
+          const status =
+            typeof error === 'object' && error !== null && 'response' in error
+              ? (error as { response?: { status?: number } }).response?.status
+              : undefined;
+          if (status === 401) {
+            setFavoriteError('로그인 세션이 만료되었습니다. 다시 로그인해주세요.');
+            logout().catch(() => {
+              /* 이미 만료된 세션 */
+            });
+          } else {
+            console.error('즐겨찾기 목록을 불러오지 못했습니다.', error);
+            setFavoriteError('즐겨찾기 정보를 불러오지 못했습니다.');
+          }
         }
       })
       .finally(() => {
@@ -204,7 +216,7 @@ export function PromptRepository() {
     return () => {
       cancelled = true;
     };
-  }, [currentUser]);
+  }, [currentUser, logout, setFavoriteStatus]);
 
   const sortedVersions = useMemo(
     () =>
