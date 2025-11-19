@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { Fragment, useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Play, Save, Sparkles, Settings, Clock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -53,6 +53,46 @@ export function Playground() {
     const prompt = match[1].trim();
     const body = text.replace(match[0], '').trim();
     return { body, prompt };
+  };
+
+  const renderTipsBody = (body: string) => {
+    const renderInline = (line: string) => {
+      const segments = line.split(/(\*\*[^*]+\*\*|"[^"]+"|“[^”]+”|”[^“]+“)/g).filter(Boolean);
+      return segments.map((segment, idx) => {
+        if (segment.startsWith('**') && segment.endsWith('**')) {
+          return (
+            <span key={idx} className="font-semibold">
+              {segment.slice(2, -2)}
+            </span>
+          );
+        }
+        const normalized = segment.trim();
+        if (
+          (normalized.startsWith('"') && normalized.endsWith('"')) ||
+          (normalized.startsWith('“') && normalized.endsWith('”'))
+        ) {
+          const content = normalized.slice(1, normalized.length - 1);
+          return (
+            <span key={idx} className="px-1 py-0.5 rounded-sm bg-muted font-medium">
+              “{content}”
+            </span>
+          );
+        }
+        return <Fragment key={idx}>{segment}</Fragment>;
+      });
+    };
+
+    return body
+      .split('\n')
+      .filter((line) => line.trim().length > 0)
+      .map((line, idx) => {
+        const cleaned = line.trim().startsWith('*') ? line.trim().replace(/^\*\s*/, '') : line;
+        return (
+          <p key={idx} className="mb-2 last:mb-0">
+            {renderInline(cleaned)}
+          </p>
+        );
+      });
   };
 
   const loadModels = useCallback(async () => {
@@ -358,8 +398,8 @@ export function Playground() {
                 {tipsError && <p className="text-sm text-destructive mb-3">{tipsError}</p>}
                 {tipsText ? (
                   <div className="space-y-4">
-                    <div className="bg-muted/40 rounded-lg p-3 whitespace-pre-wrap text-sm">
-                      {tipsText}
+                    <div className="bg-muted/40 rounded-lg p-3 text-sm space-y-1">
+                      {renderTipsBody(tipsText)}
                     </div>
                     {tipsSuggestedPrompt && (
                       <div>
