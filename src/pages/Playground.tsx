@@ -12,8 +12,10 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { useAppStore } from '@/store/useAppStore';
 import { getPlaygroundHistory, listPlaygroundHistory, runPlayground } from '@/lib/api/k/playground';
 import { fetchModels } from '@/lib/api/k/models';
+import { requestPromptTips } from '@/lib/api/k/rag';
 import type { PlaygroundHistorySummary } from '@/types/playground';
 import type { ModelSummary } from '@/types/model';
+import type { RagGuideline } from '@/types/rag';
 
 const ALLOWED_MODEL_IDS = [1, 17];
 const MODEL_LABEL_OVERRIDES: Record<number, string> = {
@@ -36,6 +38,10 @@ export function Playground() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [history, setHistory] = useState<PlaygroundHistorySummary[]>([]);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isTipsLoading, setIsTipsLoading] = useState(false);
+  const [tipsError, setTipsError] = useState<string | null>(null);
+  const [tipsText, setTipsText] = useState('');
+  const [tipsGuidelines, setTipsGuidelines] = useState<RagGuideline[]>([]);
 
   const loadModels = useCallback(async () => {
     try {
@@ -100,6 +106,32 @@ export function Playground() {
       setErrorMessage('실행 중 오류가 발생했습니다. 다시 시도해주세요.');
     } finally {
       setIsRunning(false);
+    }
+  };
+
+  const handleGenerateTips = async () => {
+    if (!input.trim()) {
+      setTipsError('프롬프트를 입력한 후 Tips 버튼을 눌러주세요.');
+      return;
+    }
+
+    setIsTipsLoading(true);
+    setTipsError(null);
+
+    try {
+      const result = await requestPromptTips({
+        prompt: input,
+        limit: 4,
+        temperature,
+        maxOutputTokens: 512,
+      });
+      setTipsText(result.text);
+      setTipsGuidelines(result.guidelines || []);
+    } catch (error) {
+      console.error('Tips 생성 실패:', error);
+      setTipsError('프롬프트 팁을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.');
+    } finally {
+      setIsTipsLoading(false);
     }
   };
 
@@ -245,12 +277,22 @@ export function Playground() {
                   placeholder="Type your prompt here... Try describing what you want the AI to do."
                   className="min-h-[500px] font-mono text-sm resize-none"
                 />
-                <div className="mt-4 flex justify-end">
-                  <Button 
-                    variant="outline" 
+                <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={handleGenerateTips}
+                    disabled={!input.trim() || isTipsLoading}
+                  >
+                    <Sparkles className="w-4 h-4 mr-2" />
+                    {isTipsLoading ? 'Generating...' : 'Prompt Tips'}
+                  </Button>
+                  <Button
+                    variant="outline"
                     size="sm"
                     onClick={handleSaveAsPrompt}
                     disabled={!input.trim()}
+                    className="sm:ml-auto"
                   >
                     <Save className="w-4 h-4 mr-2" />
                     Save as Prompt
@@ -287,6 +329,64 @@ export function Playground() {
                     </div>
                   )}
                 </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-border">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-accent" />
+                  Prompt Tips
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {tipsError && <p className="text-sm text-destructive mb-3">{tipsError}</p>}
+                {tipsText ? (
+                  <div className="space-y-4">
+                    <div className="bg-muted/40 rounded-lg p-3 whitespace-pre-wrap text-sm">
+                      {tipsText}
+                    </div>
+                    {tipsGuidelines.length > 0 && (
+                      <div>
+                        <p className="text-xs font-medium text-muted-foreground mb-2">
+                          참고한 가이드라인
+                        </p>
+                        <div className="space-y-2">
+                          {tipsGuidelines.map((item) => {
+                            const snippet =
+                              item.content.length > 160
+                                ? `${item.content.slice(0, 160)}…`
+                                : item.content;
+                            return (
+                              <div
+                                key={item.id}
+                                className="p-2 rounded-md border border-border bg-card text-sm"
+                              >
+                                <div className="flex items-center justify-between gap-2">
+                                  <span className="font-medium">{item.title}</span>
+                                  {typeof item.similarity === 'number' && (
+                                    <Badge variant="outline">
+                                      {(item.similarity * 100).toFixed(0)}%
+                                    </Badge>
+                                  )}
+                                </div>
+                                <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
+                                  {snippet}
+                                </p>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="text-sm text-muted-foreground">
+                    {isTipsLoading
+                      ? '프롬프트 팁을 불러오는 중입니다...'
+                      : '왼쪽 Prompt Input 영역에서 프롬프트를 입력한 뒤 "Prompt Tips" 버튼을 눌러보세요.'}
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>
