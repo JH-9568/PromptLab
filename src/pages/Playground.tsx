@@ -42,6 +42,18 @@ export function Playground() {
   const [tipsError, setTipsError] = useState<string | null>(null);
   const [tipsText, setTipsText] = useState('');
   const [tipsGuidelines, setTipsGuidelines] = useState<RagGuideline[]>([]);
+  const [tipsSuggestedPrompt, setTipsSuggestedPrompt] = useState('');
+
+  const extractSuggestedPrompt = (text: string) => {
+    const regex = /수정\s*프롬프트[^`]*```([\s\S]*?)```/i;
+    const match = text.match(regex);
+    if (!match) {
+      return { body: text.trim(), prompt: '' };
+    }
+    const prompt = match[1].trim();
+    const body = text.replace(match[0], '').trim();
+    return { body, prompt };
+  };
 
   const loadModels = useCallback(async () => {
     try {
@@ -117,6 +129,7 @@ export function Playground() {
 
     setIsTipsLoading(true);
     setTipsError(null);
+    setTipsSuggestedPrompt('');
 
     try {
       const result = await requestPromptTips({
@@ -125,7 +138,9 @@ export function Playground() {
         temperature,
         maxOutputTokens: 512,
       });
-      setTipsText(result.text);
+      const { body, prompt } = extractSuggestedPrompt(result.text || '');
+      setTipsText(body);
+      setTipsSuggestedPrompt(prompt);
       setTipsGuidelines(result.guidelines || []);
     } catch (error) {
       console.error('Tips 생성 실패:', error);
@@ -346,6 +361,16 @@ export function Playground() {
                     <div className="bg-muted/40 rounded-lg p-3 whitespace-pre-wrap text-sm">
                       {tipsText}
                     </div>
+                    {tipsSuggestedPrompt && (
+                      <div>
+                        <p className="text-xs font-medium text-muted-foreground mb-2">
+                          수정 프롬프트
+                        </p>
+                        <pre className="bg-card border border-border rounded-md p-3 text-xs whitespace-pre-wrap">
+                          {tipsSuggestedPrompt}
+                        </pre>
+                      </div>
+                    )}
                     {tipsGuidelines.length > 0 && (
                       <div>
                         <p className="text-xs font-medium text-muted-foreground mb-2">
