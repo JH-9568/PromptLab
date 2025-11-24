@@ -4,6 +4,16 @@
 PromptLab은 "AI가 멍청한 게 아니라, 질문이 멍청한 것"이라는 문제 인식에서 시작했습니다.  
 프롬프트를 **작성·공유·버전관리·추천·실행**까지 한 번에 해결하는 올인원 PromptOps 플랫폼입니다.
 
+## 👥 Team Members
+
+| Name | Role | Responsibilities |
+|------|------|------------------|
+| 정진형 | PM / Fullstack | 기획 · 디자인 · FE(Zustand/Router/Playground/Team/PromptRepo) · BE(RAG Tips)구현 |
+| 김회광 | Frontend |  |
+| 박세인 | Backend |  |
+| 유민아 | Backend |  |
+
+
 <img width="624" height="880" alt="스크린샷 2025-11-25 오전 2 01 24" src="https://github.com/user-attachments/assets/b5719b66-3f22-4644-88ad-fa8fdb1dd95f" />
 
 ---
