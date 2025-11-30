@@ -26,6 +26,8 @@ import { getMyWorkspaces, sharePromptToWorkspace } from '@/lib/api/k/workspaces'
 import type { WorkspaceRole, WorkspaceSummary } from '@/types/workspace';
 import type { PromptDetail, PromptVersion, PromptComment } from '@/types/prompt';
 
+<<<<<<< HEAD
+=======
 const MODEL_NAME_MAP: Record<number, string> = {
   1: 'ChatGPT',
   17: 'Gemini',
@@ -36,6 +38,7 @@ const getModelDisplayName = (id?: number | null) => {
   return MODEL_NAME_MAP[id] ?? `ID ${id}`;
 };
 
+>>>>>>> 0aca8b6b95074e128a40fe3ee7ea56b9cbd625ef
 export function PromptRepository() {
   const navigate = useNavigate();
   const setSelectedPromptId = useAppStore((state) => state.setSelectedPromptId);
@@ -303,12 +306,15 @@ export function PromptRepository() {
 
   const goHome = () => {
     setSelectedPromptId(null);
+<<<<<<< HEAD
+=======
     const fromParam = searchParams.get('from');
     const categoryCode = searchParams.get('category');
     if (fromParam === 'category' && categoryCode) {
       navigate(`/category?code=${encodeURIComponent(categoryCode)}`);
       return;
     }
+>>>>>>> 0aca8b6b95074e128a40fe3ee7ea56b9cbd625ef
     navigate('/');
   };
 
@@ -589,7 +595,11 @@ export function PromptRepository() {
               <CardContent className="space-y-4">
                 <div>
                   <p className="text-sm text-muted-foreground mb-2">
+<<<<<<< HEAD
+                    모델 ID: {activeVersion?.model_setting?.ai_model_id ?? '알 수 없음'}
+=======
                     모델: {getModelDisplayName(activeVersion?.model_setting?.ai_model_id)}
+>>>>>>> 0aca8b6b95074e128a40fe3ee7ea56b9cbd625ef
                   </p>
                   <p className="text-xs text-muted-foreground">{prompt?.description}</p>
                 </div>
