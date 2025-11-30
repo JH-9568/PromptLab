@@ -555,7 +555,11 @@ export function TeamPage() {
 
       {/* Manage Team Modal */}
       <Dialog open={isManageModalOpen} onOpenChange={setIsManageModalOpen}>
+<<<<<<< HEAD
         <DialogContent className="max-w-2xl">
+=======
+        <DialogContent className="w-[min(720px,100%)] mx-auto px-4 py-6 rounded-[28px] shadow-2xl bg-gradient-to-br from-card via-card/80 to-card/60 ring-1 ring-border/70">
+>>>>>>> 0aca8b6b95074e128a40fe3ee7ea56b9cbd625ef
           <DialogHeader>
             <DialogTitle>팀 관리</DialogTitle>
             <DialogDescription>

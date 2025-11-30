@@ -192,7 +192,11 @@ export function UserProfile() {
     <div className="min-h-screen gradient-dark-bg gradient-overlay">
       {/* Header */}
       <header className="border-b bg-card">
+<<<<<<< HEAD
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 sm:py-4 flex items-center gap-2 sm:gap-4">
+=======
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-3 sm:py-4 flex items-center gap-2 sm:gap-4">
+>>>>>>> 0aca8b6b95074e128a40fe3ee7ea56b9cbd625ef
           <Button variant="ghost" size="icon" onClick={() => navigate('/')}>
             <ArrowLeft className="w-4 h-4 sm:w-5 sm:h-5" />
           </Button>
@@ -200,7 +204,11 @@ export function UserProfile() {
         </div>
       </header>
 
+<<<<<<< HEAD
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
+=======
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
+>>>>>>> 0aca8b6b95074e128a40fe3ee7ea56b9cbd625ef
         {}
         {error && (
           <Card className="mb-6 border-destructive/50 bg-destructive/10">
@@ -275,7 +283,12 @@ export function UserProfile() {
 
         {}
         <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+<<<<<<< HEAD
           <DialogContent className="sm:max-w-[500px]">
+=======
+          <DialogContent className="w-[min(420px,100%)] mx-auto px-4 py-6 rounded-[28px] shadow-2xl bg-card ring-1 ring-border/30">
+          <div className="mx-auto w-full max-w-sm space-y-4">
+>>>>>>> 0aca8b6b95074e128a40fe3ee7ea56b9cbd625ef
             <DialogHeader>
               <DialogTitle>프로필 편집</DialogTitle>
               <DialogDescription>
@@ -350,7 +363,12 @@ export function UserProfile() {
                 </Button>
               </div>
             </form>
+<<<<<<< HEAD
           </DialogContent>
+=======
+          </div>
+        </DialogContent>
+>>>>>>> 0aca8b6b95074e128a40fe3ee7ea56b9cbd625ef
         </Dialog>
 
         {/* Tabs */}
@@ -544,7 +562,12 @@ export function UserProfile() {
 
         {}
         <Dialog open={isDeleteDialogOpen} onOpenChange={handleCloseDeleteDialog}>
+<<<<<<< HEAD
           <DialogContent className="sm:max-w-[500px]">
+=======
+          <DialogContent className="w-[min(420px,100%)] mx-auto px-4 py-6 rounded-[28px] shadow-2xl bg-card ring-1 ring-border/30">
+          <div className="mx-auto w-full max-w-sm space-y-4">
+>>>>>>> 0aca8b6b95074e128a40fe3ee7ea56b9cbd625ef
             <DialogHeader>
               <DialogTitle className="text-destructive flex items-center gap-2">
                 <AlertTriangle className="w-5 h-5" />
@@ -625,7 +648,12 @@ export function UserProfile() {
                 </Button>
               </div>
             </div>
+<<<<<<< HEAD
           </DialogContent>
+=======
+          </div>
+        </DialogContent>
+>>>>>>> 0aca8b6b95074e128a40fe3ee7ea56b9cbd625ef
         </Dialog>
 
         {/* Logout Button */}

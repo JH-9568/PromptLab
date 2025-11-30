@@ -1,6 +1,10 @@
 import { ArrowLeft, TrendingUp, Clock, Star, Loader2, Heart } from 'lucide-react';
 import { useEffect, useState } from 'react';
+<<<<<<< HEAD
 import { useNavigate, useSearchParams } from 'react-router-dom';
+=======
+import { useNavigate, useNavigationType, useSearchParams } from 'react-router-dom';
+>>>>>>> 0aca8b6b95074e128a40fe3ee7ea56b9cbd625ef
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -16,7 +20,12 @@ interface CategoryPrompt {
 }
 
 export function CategoryPage() {
+<<<<<<< HEAD
   const navigate = useNavigate();
+=======
+const navigate = useNavigate();
+const navigationType = useNavigationType();
+>>>>>>> 0aca8b6b95074e128a40fe3ee7ea56b9cbd625ef
   const [searchParams, setSearchParams] = useSearchParams();
   const selectedCategoryFromStore = useAppStore((state) => state.selectedCategoryCode);
   const setSelectedCategoryCode = useAppStore((state) => state.setSelectedCategoryCode);
@@ -109,7 +118,17 @@ export function CategoryPage() {
 
   const openPrompt = (promptId: number) => {
     setSelectedPromptId(promptId);
+<<<<<<< HEAD
     navigate(`/repository?id=${promptId}`);
+=======
+    const params = new URLSearchParams();
+    params.set('id', promptId.toString());
+    if (activeCategory) {
+      params.set('from', 'category');
+      params.set('category', activeCategory);
+    }
+    navigate(`/repository?${params.toString()}`);
+>>>>>>> 0aca8b6b95074e128a40fe3ee7ea56b9cbd625ef
   };
 
   const renderPromptCard = (item: CategoryPrompt) => (
@@ -169,7 +188,23 @@ export function CategoryPage() {
       <div className="border-b bg-card">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 sm:py-6">
           <button
+<<<<<<< HEAD
             onClick={() => navigate('/')}
+=======
+            onClick={() => {
+              const historyState = window.history.state as { idx?: number } | null;
+              if (
+                historyState &&
+                typeof historyState.idx === 'number' &&
+                historyState.idx > 0 &&
+                navigationType !== 'POP'
+              ) {
+                navigate(-1);
+              } else {
+                navigate('/');
+              }
+            }}
+>>>>>>> 0aca8b6b95074e128a40fe3ee7ea56b9cbd625ef
             className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors mb-3 sm:mb-4"
           >
             <ArrowLeft className="w-4 h-4 sm:w-5 sm:h-5" />
